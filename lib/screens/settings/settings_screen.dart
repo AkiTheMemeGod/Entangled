@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../providers/theme_provider.dart';
-import '../../theme/glassmorphism.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/theme_variants.dart';
 import '../../widgets/animated_gradient_bg.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -10,43 +12,235 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeProvider);
+    final settings = ref.watch(themeSettingsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(
+          'Settings',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
       ),
       body: AnimatedGradientBg(
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           children: [
-            GlassCard(
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    title: const Text('Dark Mode'),
-                    value: themeMode == ThemeMode.dark,
-                    onChanged: (val) {
-                      ref.read(themeModeProvider.notifier).toggleTheme();
-                    },
-                  ),
-                  const Divider(),
-                  ListTile(
-                    title: const Text('Notifications'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {},
-                  ),
-                  const Divider(),
-                  ListTile(
-                    title: const Text('Privacy & Security'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {},
-                  ),
-                ],
+            _buildSectionHeader(context, 'Appearance'),
+            const SizedBox(height: 12),
+            _buildSettingTile(
+              context,
+              icon: Icons.dark_mode_rounded,
+              title: 'Obsidian Theme',
+              subtitle: 'Toggle dark/light resonance',
+              trailing: Switch(
+                value: settings.mode == ThemeMode.dark,
+                activeColor: Theme.of(context).colorScheme.primary,
+                onChanged: (val) {
+                  ref.read(themeSettingsProvider.notifier).toggleTheme();
+                },
               ),
+            ),
+            const SizedBox(height: 24),
+            _buildThemeGallery(context, ref, settings),
+            const SizedBox(height: 32),
+            _buildSectionHeader(context, 'Notifications'),
+            const SizedBox(height: 12),
+            _buildSettingTile(
+              context,
+              icon: Icons.notifications_active_rounded,
+              title: 'Push Notifications',
+              subtitle: 'Real-time sync alerts',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildSettingTile(
+              context,
+              icon: Icons.vibration_rounded,
+              title: 'Vaptic Feedback',
+              subtitle: 'Quantum tactile response',
+              onTap: () {},
+            ),
+            const SizedBox(height: 32),
+            _buildSectionHeader(context, 'Privacy & Security'),
+            const SizedBox(height: 12),
+            _buildSettingTile(
+              context,
+              icon: Icons.security_rounded,
+              title: 'Encryption Protocol',
+              subtitle: 'Manage E2EE keys',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildSettingTile(
+              context,
+              icon: Icons.phonelink_lock_rounded,
+              title: 'Self-Destruct Timer',
+              subtitle: 'Auto-erase message history',
+              onTap: () {},
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8.0),
+      child: Text(
+        title.toUpperCase(),
+        style: GoogleFonts.outfit(
+          color: Theme.of(context).colorScheme.primary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 2,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeGallery(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeSettings settings,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 8.0, bottom: 12),
+          child: Text(
+            'COLOR RESONANCE',
+            style: GoogleFonts.outfit(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.5,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 100,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: AppThemeVariant.values.length,
+            itemBuilder: (context, index) {
+              final variant = AppThemeVariant.values[index];
+              final palette = ThemePalette.getPalette(variant);
+              final isSelected = settings.variant == variant;
+
+              return GestureDetector(
+                onTap: () => ref
+                    .read(themeSettingsProvider.notifier)
+                    .setThemeVariant(variant),
+                child: Container(
+                  width: 80,
+                  margin: const EdgeInsets.only(right: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected
+                          ? palette.primary
+                          : AppColors.glassBorder,
+                      width: isSelected ? 2 : 1,
+                    ),
+                    gradient: LinearGradient(
+                      colors: [palette.primary, palette.secondary],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      if (isSelected)
+                        const Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Icon(
+                            Icons.check_circle_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      Positioned(
+                        bottom: 8,
+                        left: 8,
+                        child: Text(
+                          variant.name.substring(0, 1).toUpperCase() +
+                              variant.name.substring(1),
+                          style: GoogleFonts.outfit(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSettingTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.isDarkMode(context)
+            ? AppColors.glassHeavy
+            : Colors.white.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.glassBorder, width: 1),
+      ),
+      child: ListTile(
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            icon,
+            color: Theme.of(context).colorScheme.primary,
+            size: 24,
+          ),
+        ),
+        title: Text(
+          title,
+          style: GoogleFonts.outfit(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: GoogleFonts.outfit(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 12,
+          ),
+        ),
+        trailing:
+            trailing ??
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant.withOpacity(0.6),
+              size: 20,
+            ),
       ),
     );
   }
