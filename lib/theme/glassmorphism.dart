@@ -6,12 +6,9 @@ class Glassmorphism {
   static BoxDecoration getBaseDecoration(BuildContext context) {
     bool isDark = AppColors.isDarkMode(context);
     return BoxDecoration(
-      color: isDark ? AppColors.glassWhiteLight : AppColors.glassWhite,
+      color: isDark ? AppColors.glassHeavy : AppColors.glassBase,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(
-        color: isDark ? AppColors.glassBorderWhite : AppColors.glassBorderWhite, 
-        width: 1.5,
-      ),
+      border: Border.all(color: AppColors.glassBorder, width: 1.5),
       boxShadow: [
         BoxShadow(
           color: Colors.black.withOpacity(0.05),
@@ -44,7 +41,7 @@ class GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isDark = AppColors.isDarkMode(context);
-    
+
     return Container(
       width: width,
       height: height,
@@ -56,19 +53,16 @@ class GlassCard extends StatelessWidget {
           child: Container(
             padding: padding ?? const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.6),
+              color: isDark ? AppColors.glassHeavy : AppColors.glassBase,
               borderRadius: borderRadius ?? BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.2),
-                width: 1,
-              ),
+              border: Border.all(color: AppColors.glassBorder, width: 1),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
                   blurRadius: 10,
                   spreadRadius: 0,
                   offset: const Offset(0, 4),
-                )
+                ),
               ],
             ),
             child: child,
