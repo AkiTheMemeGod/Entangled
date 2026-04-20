@@ -17,10 +17,13 @@ class AuthService {
         email: email,
         password: password,
       );
-      
+
       if (userCredential.user != null) {
         // Update last seen
-        await _firestoreService.updateUserPresence(userCredential.user!.uid, true);
+        await _firestoreService.updateUserPresence(
+          userCredential.user!.uid,
+          true,
+        );
         return await _firestoreService.getUser(userCredential.user!.uid);
       }
       return null;
@@ -29,13 +32,15 @@ class AuthService {
     }
   }
 
-  Future<UserModel?> signUpWithEmail(String email, String password, String displayName) async {
+  Future<UserModel?> signUpWithEmail(
+    String email,
+    String password,
+    String displayName,
+  ) async {
     try {
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      
+      UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(email: email, password: password);
+
       User? user = userCredential.user;
       if (user != null) {
         UserModel newUser = UserModel(
@@ -46,7 +51,7 @@ class AuthService {
           isOnline: true,
           createdAt: DateTime.now(),
         );
-        
+
         await _firestoreService.createUser(newUser);
         return newUser;
       }
@@ -59,22 +64,25 @@ class AuthService {
   Future<UserModel?> signInWithGoogle() async {
     try {
       await GoogleSignIn.instance.initialize();
-      final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate();
-      if (googleUser == null) return null;
-
+      final GoogleSignInAccount googleUser = await GoogleSignIn.instance
+          .authenticate();
       final GoogleSignInAuthentication googleAuth = googleUser.authentication;
-      final authz = await googleUser.authorizationClient.authorizationForScopes(['email', 'profile']);
+      final authz = await googleUser.authorizationClient.authorizationForScopes(
+        ['email', 'profile'],
+      );
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: authz?.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      UserCredential userCredential = await _auth.signInWithCredential(credential);
+      UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
       User? user = userCredential.user;
-      
+
       if (user != null) {
         UserModel? existingUser = await _firestoreService.getUser(user.uid);
-        
+
         if (existingUser == null) {
           existingUser = UserModel(
             uid: user.uid,
@@ -89,7 +97,7 @@ class AuthService {
         } else {
           await _firestoreService.updateUserPresence(user.uid, true);
         }
-        
+
         return existingUser;
       }
       return null;
