@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/routes.dart';
 import '../../providers/auth_provider.dart';
@@ -16,27 +18,54 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  bool _timerDone = false;
+
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    _startTimer();
   }
 
-  Future<void> _checkAuth() async {
-    // Wait for animation
+  Future<void> _startTimer() async {
     await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
+    if (mounted) {
+      setState(() {
+        _timerDone = true;
+      });
+      _checkNavigation();
+    }
+  }
+
+  void _checkNavigation() {
+    if (!_timerDone) return;
 
     final authState = ref.read(authStateProvider);
-    
-    // Check if user is logged in
-    if (authState.value != null) {
-      // Initialize FCM and save token for push notifications
-      final messagingService = MessagingService();
-      await messagingService.init(authState.value!.uid);
 
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, AppRoutes.home);
+    authState.when(
+      data: (user) => _performNavigation(user),
+      loading: () {
+        // If still loading, ref.listen will handle it when it arrives
+      },
+      error: (err, stack) => _performNavigation(null),
+    );
+  }
+
+  Future<void> _performNavigation(User? user) async {
+    if (!mounted) return;
+
+    if (user != null) {
+      try {
+        final messagingService = MessagingService();
+        await messagingService
+            .init(user.uid)
+            .timeout(const Duration(seconds: 5));
+      } catch (e) {
+        debugPrint('FCM Init failed: $e');
+      }
+
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
+      }
     } else {
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     }
@@ -44,6 +73,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Listen for auth state changes and navigate if the timer is already done
+    ref.listen(authStateProvider, (previous, next) {
+      if (_timerDone) {
+        _checkNavigation();
+      }
+    });
+
     return Scaffold(
       body: AnimatedGradientBg(
         child: Center(
@@ -52,35 +88,50 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             children: [
               // Logo placeholder
               Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacity(0.5),
-                      blurRadius: 20,
-                      spreadRadius: 5,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          AppColors.radiantViolet,
+                          AppColors.radiantIndigo,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.radiantViolet.withOpacity(0.4),
+                          blurRadius: 30,
+                          spreadRadius: 2,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.chat_bubble_rounded,
-                  size: 64,
-                  color: Colors.white,
-                ),
-              ).animate().scale(duration: 500.ms, curve: Curves.easeOutBack)
-               .then().shimmer(duration: 1.seconds),
-              
-              const SizedBox(height: 24),
-              
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 64,
+                      color: Colors.white,
+                    ),
+                  )
+                  .animate()
+                  .scale(duration: 500.ms, curve: Curves.easeOutBack)
+                  .then()
+                  .shimmer(duration: 1.seconds),
+
+              const SizedBox(height: 32),
+
               Text(
-                'Entangled',
-                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
-              ).animate().fade(delay: 300.ms, duration: 500.ms).slideY(begin: 0.5),
+                    'Entangled',
+                    style: GoogleFonts.outfit(
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -1,
+                      color: AppColors.textMain,
+                    ),
+                  )
+                  .animate()
+                  .fade(delay: 300.ms, duration: 500.ms)
+                  .slideY(begin: 0.5),
             ],
           ),
         ),
@@ -88,4 +139,3 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     );
   }
 }
-
