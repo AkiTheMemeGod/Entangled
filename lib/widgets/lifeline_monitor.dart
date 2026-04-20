@@ -67,16 +67,14 @@ class _LifelineMonitorState extends State<LifelineMonitor>
                       width: 50,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.4),
+                        color: Colors.black.withAlpha(102),
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(16),
                           topRight: Radius.circular(16),
                           bottomRight: Radius.circular(16),
                           bottomLeft: Radius.circular(4),
                         ),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
-                        ),
+                        border: Border.all(color: Colors.white.withAlpha(26)),
                       ),
                       child: Center(
                         child: AnimatedBuilder(
@@ -119,7 +117,7 @@ class ECGPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppColors.electricRose.withOpacity(0.9)
+      ..color = AppColors.electricRose.withAlpha(230)
       ..strokeWidth = 1.8
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -164,7 +162,7 @@ class ECGPainter extends CustomPainter {
       canvas.drawPath(
         path,
         Paint()
-          ..color = AppColors.electricRose.withOpacity(0.3)
+          ..color = AppColors.electricRose.withAlpha(77)
           ..strokeWidth = 3
           ..style = PaintingStyle.stroke
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
