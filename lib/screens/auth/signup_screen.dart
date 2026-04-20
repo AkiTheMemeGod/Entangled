@@ -30,7 +30,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   Future<void> _signup() async {
     setState(() => _isLoading = true);
     try {
-      await ref.read(authServiceProvider).signUpWithEmail(
+      await ref
+          .read(authServiceProvider)
+          .signUpWithEmail(
             _emailController.text.trim(),
             _passwordController.text.trim(),
             _nameController.text.trim(),
@@ -40,9 +42,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -61,13 +63,17 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.person_add_alt_1_rounded, size: 48, color: Colors.blueAccent),
+                  const Icon(
+                    Icons.person_add_alt_1_rounded,
+                    size: 48,
+                    color: Colors.blueAccent,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Create Account',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 32),
                   TextField(
@@ -104,7 +110,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : const Text('Sign Up'),
                     ),
@@ -115,7 +124,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     children: [
                       const Text("Already have an account?"),
                       TextButton(
-                        onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.login),
+                        onPressed: () => Navigator.pushReplacementNamed(
+                          context,
+                          AppRoutes.login,
+                        ),
                         child: const Text('Sign In'),
                       ),
                     ],

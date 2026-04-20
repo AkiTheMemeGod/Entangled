@@ -28,7 +28,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _login() async {
     setState(() => _isLoading = true);
     try {
-      await ref.read(authServiceProvider).signInWithEmail(
+      await ref
+          .read(authServiceProvider)
+          .signInWithEmail(
             _emailController.text.trim(),
             _passwordController.text.trim(),
           );
@@ -37,9 +39,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -55,9 +57,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -76,13 +78,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.chat_bubble_rounded, size: 48, color: Colors.blueAccent),
+                  const Icon(
+                    Icons.chat_bubble_rounded,
+                    size: 48,
+                    color: Colors.blueAccent,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Welcome Back',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 32),
                   TextField(
@@ -111,7 +117,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : const Text('Sign In'),
                     ),
@@ -139,7 +148,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     children: [
                       const Text("Don't have an account?"),
                       TextButton(
-                        onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.signup),
+                        onPressed: () => Navigator.pushReplacementNamed(
+                          context,
+                          AppRoutes.signup,
+                        ),
                         child: const Text('Sign Up'),
                       ),
                     ],
