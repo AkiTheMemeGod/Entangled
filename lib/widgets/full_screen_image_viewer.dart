@@ -6,13 +6,13 @@ import '../theme/app_colors.dart';
 
 class FullScreenImageViewer extends StatelessWidget {
   final String imageUrl;
-  final String tag;
+  final String? tag;
   final String? name;
 
   const FullScreenImageViewer({
     super.key,
     required this.imageUrl,
-    required this.tag,
+    this.tag,
     this.name,
   });
 
@@ -52,38 +52,74 @@ class FullScreenImageViewer extends StatelessWidget {
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-              child: Container(color: Colors.black.withOpacity(0.7)),
+              child: Container(color: Colors.black.withAlpha(179)),
             ),
           ),
-          
+
           // Main Interactive Image
           Center(
-            child: Hero(
-              tag: tag,
-              child: InteractiveViewer(
-                minScale: 0.5,
-                maxScale: 4.0,
-                child: CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  fit: BoxFit.contain,
-                  width: double.infinity,
-                  placeholder: (context, url) => const Center(
-                    child: CircularProgressIndicator(color: AppColors.radiantViolet),
-                  ),
-                  errorWidget: (context, url, error) => Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.white, size: 48),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Failed to load image',
-                        style: GoogleFonts.outfit(color: Colors.white70),
+            child: tag != null
+                ? Hero(
+                    tag: tag!,
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 4.0,
+                      child: CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.contain,
+                        width: double.infinity,
+                        placeholder: (context, url) => const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.radiantViolet,
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              color: Colors.white,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Failed to load image',
+                              style: GoogleFonts.outfit(color: Colors.white70),
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
+                    ),
+                  )
+                : InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 4.0,
+                    child: CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      placeholder: (context, url) => const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.radiantViolet,
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.white,
+                            size: 48,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Failed to load image',
+                            style: GoogleFonts.outfit(color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
           ),
         ],
       ),
