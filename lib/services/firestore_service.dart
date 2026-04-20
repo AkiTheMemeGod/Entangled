@@ -96,7 +96,7 @@ class FirestoreService {
     // Check if friends
     final outReq = await _firestore
         .collection('friend_requests')
-        .doc('${myUid}_${otherUid}')
+        .doc('${myUid}_$otherUid')
         .get();
     if (outReq.exists) {
       return outReq.get('status') == 'accepted' ? 'friends' : 'pending_sent';
@@ -104,7 +104,7 @@ class FirestoreService {
 
     final inReq = await _firestore
         .collection('friend_requests')
-        .doc('${otherUid}_${myUid}')
+        .doc('${otherUid}_$myUid')
         .get();
     if (inReq.exists) {
       return inReq.get('status') == 'accepted' ? 'friends' : 'pending_received';
@@ -253,7 +253,6 @@ class FirestoreService {
     // Check if it's the last message in the chat to update the preview
     final chatDoc = await _firestore.collection('chats').doc(chatId).get();
     if (chatDoc.exists) {
-      final lastMsgSenderId = chatDoc.get('lastMessageSenderId');
       // This is a bit simplified, but typical. If we wanted to be 100% sure,
       // we'd check if this messageId matches the hidden last message ID if we tracked it.
       // For now, we'll just update the text preview always if we're deleting for all.
