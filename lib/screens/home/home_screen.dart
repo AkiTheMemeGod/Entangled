@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:intl/intl.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/routes.dart';
@@ -43,7 +42,7 @@ class HomeScreen extends ConsumerWidget {
                             Icon(
                               Icons.chat_bubble_outline,
                               size: 48,
-                              color: AppColors.textMuted.withOpacity(0.5),
+                              color: AppColors.textMuted.withAlpha(128),
                             ),
                             const SizedBox(height: 16),
                             Text(
@@ -98,7 +97,7 @@ class HomeScreen extends ConsumerWidget {
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: AppColors.radiantViolet.withOpacity(0.3),
+              color: Theme.of(context).colorScheme.primary.withAlpha(77),
               blurRadius: 15,
               spreadRadius: 2,
             ),
@@ -108,7 +107,7 @@ class HomeScreen extends ConsumerWidget {
           onPressed: () {
             Navigator.pushNamed(context, AppRoutes.searchUsers);
           },
-          backgroundColor: AppColors.radiantViolet,
+          backgroundColor: Theme.of(context).colorScheme.primary,
           elevation: 4,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -143,7 +142,7 @@ class HomeScreen extends ConsumerWidget {
                 'Quantum Encrypted',
                 style: GoogleFonts.outfit(
                   fontSize: 12,
-                  color: AppColors.radiantViolet,
+                  color: Theme.of(context).colorScheme.primary,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 1.5,
                 ),
@@ -181,8 +180,8 @@ class HomeScreen extends ConsumerWidget {
                           child: Container(
                             width: 10,
                             height: 10,
-                            decoration: const BoxDecoration(
-                              color: AppColors.electricRose,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.secondary,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -191,7 +190,7 @@ class HomeScreen extends ConsumerWidget {
                   );
                 },
                 loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
+                error: (error, stackTrace) => const SizedBox.shrink(),
               ),
               const SizedBox(width: 12),
               HolographicAvatar(
@@ -232,12 +231,14 @@ class HomeScreen extends ConsumerWidget {
         child: Container(
           decoration: BoxDecoration(
             color: isUnread
-                ? Colors.white.withOpacity(0.08)
-                : AppColors.glassBase,
+                ? Theme.of(context).colorScheme.primary.withAlpha(20)
+                : (Theme.of(context).brightness == Brightness.dark
+                      ? AppColors.glassBase
+                      : Colors.black.withAlpha(8)),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: isUnread
-                  ? AppColors.radiantViolet.withOpacity(0.3)
+                  ? Theme.of(context).colorScheme.primary.withAlpha(77)
                   : AppColors.glassBorder,
               width: 1,
             ),
@@ -275,10 +276,12 @@ class HomeScreen extends ConsumerWidget {
                       width: 14,
                       height: 14,
                       decoration: BoxDecoration(
-                        color: AppColors.electricRose,
+                        color: Theme.of(context).colorScheme.secondary,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: AppColors.obsidianBase,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? AppColors.obsidianBase
+                              : Colors.white,
                           width: 2,
                         ),
                       ),
@@ -318,8 +321,10 @@ class HomeScreen extends ConsumerWidget {
                   style: GoogleFonts.outfit(
                     fontSize: 12,
                     color: isUnread
-                        ? AppColors.radiantViolet
-                        : AppColors.textMuted,
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant.withAlpha(153),
                   ),
                 ),
                 if (isUnread) ...[
@@ -330,7 +335,7 @@ class HomeScreen extends ConsumerWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.radiantViolet,
+                      color: Theme.of(context).colorScheme.primary,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
