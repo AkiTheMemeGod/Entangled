@@ -13,5 +13,13 @@ final userChatsProvider = StreamProvider<List<ChatModel>>((ref) {
 });
 
 final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((ref, chatId) {
-  return ref.watch(firestoreServiceProvider).streamMessages(chatId);
+  final user = ref.watch(authStateProvider).value;
+  if (user != null) {
+    return ref.watch(firestoreServiceProvider).streamMessages(chatId, user.uid);
+  }
+  return Stream.value([]);
+});
+
+final chatProvider = StreamProvider.family<ChatModel?, String>((ref, chatId) {
+  return ref.watch(firestoreServiceProvider).streamChat(chatId);
 });
