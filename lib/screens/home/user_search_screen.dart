@@ -105,27 +105,34 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
               padding: const EdgeInsets.all(20.0),
               child: Container(
                 decoration: BoxDecoration(
-                  color: AppColors.isDarkMode(context) ? AppColors.glassHeavy : Colors.white.withOpacity(0.7),
+                  color: AppColors.isDarkMode(context)
+                      ? AppColors.glassHeavy
+                      : Colors.white.withAlpha(128),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: AppColors.glassBorder, width: 1.5),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withAlpha(51),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
                   ],
                 ),
                 child: TextField(
+                  onSubmitted: _searchUsers,
                   controller: _searchController,
-                  style: GoogleFonts.outfit(color: Theme.of(context).colorScheme.onSurface),
-                  cursorColor: AppColors.radiantViolet,
+                  style: GoogleFonts.outfit(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  cursorColor: Theme.of(context).colorScheme.primary,
                   decoration: InputDecoration(
                     hintText: 'Enter exact email address...',
-                    hintStyle: GoogleFonts.outfit(color: Theme.of(context).hintColor),
-                    prefixIcon: const Icon(
+                    hintStyle: GoogleFonts.outfit(
+                      color: Theme.of(context).hintColor,
+                    ),
+                    prefixIcon: Icon(
                       Icons.search_rounded,
-                      color: AppColors.radiantViolet,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(
@@ -133,15 +140,14 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                       vertical: 15,
                     ),
                   ),
-                  onSubmitted: _searchUsers,
                 ),
               ),
             ),
             Expanded(
               child: _isLoading
-                  ? const Center(
+                  ? Center(
                       child: CircularProgressIndicator(
-                        color: AppColors.radiantViolet,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     )
                   : _searchResults.isEmpty
@@ -152,7 +158,7 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                           Icon(
                             Icons.person_search_rounded,
                             size: 80,
-                            color: AppColors.textDim.withOpacity(0.1),
+                            color: AppColors.textDim.withAlpha(26),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -160,7 +166,9 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                                 ? 'Search for your friends by email'
                                 : 'No matching user found',
                             style: GoogleFonts.outfit(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               fontSize: 16,
                             ),
                           ),
@@ -187,20 +195,22 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                             if (status == 'friends') {
                               trailingText = 'Message';
                               trailingIcon = Icons.chat_bubble_rounded;
-                              color = AppColors.radiantViolet;
+                              color = Theme.of(context).colorScheme.primary;
                               onTap = () => _startChat(user);
                             } else if (status == 'pending_sent') {
                               trailingText = 'Pending';
                               trailingIcon = Icons.timer_rounded;
-                              color = AppColors.textMuted;
+                              color = Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant.withAlpha(153);
                             } else if (status == 'pending_received') {
                               trailingText = 'Requests';
                               trailingIcon = Icons.person_add_rounded;
-                              color = AppColors.electricRose;
+                              color = Theme.of(context).colorScheme.secondary;
                             } else {
                               trailingText = 'Add';
                               trailingIcon = Icons.add_rounded;
-                              color = AppColors.radiantViolet;
+                              color = Theme.of(context).colorScheme.primary;
                               onTap = () => _sendRequest(user);
                             }
 
@@ -208,7 +218,9 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                               padding: const EdgeInsets.only(bottom: 12.0),
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: AppColors.isDarkMode(context) ? AppColors.glassHeavy : Colors.white.withOpacity(0.5),
+                                  color: AppColors.isDarkMode(context)
+                                      ? AppColors.glassHeavy
+                                      : Colors.white.withAlpha(128),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
                                     color: AppColors.glassBorder,
@@ -226,14 +238,18 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                                   title: Text(
                                     user.displayName,
                                     style: GoogleFonts.outfit(
-                                      color: Theme.of(context).colorScheme.onSurface,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                   subtitle: Text(
                                     user.email,
                                     style: GoogleFonts.outfit(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
                                       fontSize: 13,
                                     ),
                                   ),
@@ -246,12 +262,12 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: (onTap != null)
-                                            ? color?.withOpacity(0.1)
+                                            ? color.withAlpha(26)
                                             : Colors.transparent,
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
                                           color: (onTap != null)
-                                              ? color!.withOpacity(0.3)
+                                              ? color.withAlpha(77)
                                               : AppColors.glassBorder,
                                           width: 1,
                                         ),
