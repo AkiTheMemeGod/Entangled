@@ -1,7 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/routes.dart';
 import '../../models/chat_model.dart';
@@ -11,6 +14,7 @@ import '../../providers/chat_provider.dart';
 import '../../providers/friend_request_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/animated_gradient_bg.dart';
+import '../../widgets/holographic_avatar.dart';
 import '../../widgets/shimmer_loading.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -24,6 +28,7 @@ class HomeScreen extends ConsumerWidget {
     return Scaffold(
       body: AnimatedGradientBg(
         child: SafeArea(
+          bottom: false,
           child: Column(
             children: [
               _buildAppBar(context, ref, currentUser),
@@ -31,35 +36,85 @@ class HomeScreen extends ConsumerWidget {
                 child: chatsAsyncValue.when(
                   data: (chats) {
                     if (chats.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          'No conversations yet. Add friends to start chatting!',
-                          style: TextStyle(color: Colors.white70),
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.chat_bubble_outline,
+                              size: 48,
+                              color: AppColors.textMuted.withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No conversations yet.',
+                              style: GoogleFonts.outfit(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              'Add friends to start chatting!',
+                              style: GoogleFonts.outfit(
+                                color: Theme.of(context).hintColor,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     }
                     return ListView.builder(
                       itemCount: chats.length,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
                       itemBuilder: (context, index) {
-                        return _buildChatTile(context, chats[index], currentUser?.uid);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: _buildChatTile(
+                            context,
+                            chats[index],
+                            currentUser?.uid,
+                          ),
+                        );
                       },
                     );
                   },
                   loading: () => const ShimmerChartList(),
-                  error: (err, stack) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.white))),
+                  error: (err, stack) => Center(
+                    child: Text(
+                      'Error: $err',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.pushNamed(context, AppRoutes.searchUsers);
-        },
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.person_add, color: Colors.white),
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.radiantViolet.withOpacity(0.3),
+              blurRadius: 15,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: () {
+            Navigator.pushNamed(context, AppRoutes.searchUsers);
+          },
+          backgroundColor: AppColors.radiantViolet,
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: const Icon(Icons.add, color: Colors.white, size: 28),
+        ),
       ),
     );
   }
@@ -68,16 +123,32 @@ class HomeScreen extends ConsumerWidget {
     final requestsAsync = ref.watch(incomingRequestsProvider);
 
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            'Messages',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Entangled',
+                style: GoogleFonts.outfit(
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  letterSpacing: -0.5,
                 ),
+              ),
+              Text(
+                'Quantum Encrypted',
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  color: AppColors.radiantViolet,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
           ),
           Row(
             children: [
@@ -85,32 +156,34 @@ class HomeScreen extends ConsumerWidget {
                 data: (requests) {
                   return Stack(
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.people_outline, color: Colors.white),
-                        onPressed: () => Navigator.pushNamed(context, AppRoutes.friendRequests),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.glassBase,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.glassBorder),
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.notifications_none_rounded,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            size: 22,
+                          ),
+                          onPressed: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.friendRequests,
+                          ),
+                        ),
                       ),
                       if (requests.isNotEmpty)
                         Positioned(
                           right: 8,
                           top: 8,
                           child: Container(
-                            padding: const EdgeInsets.all(4),
+                            width: 10,
+                            height: 10,
                             decoration: const BoxDecoration(
-                              color: Colors.red,
+                              color: AppColors.electricRose,
                               shape: BoxShape.circle,
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 16,
-                              minHeight: 16,
-                            ),
-                            child: Text(
-                              '${requests.length}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
                             ),
                           ),
                         ),
@@ -120,110 +193,160 @@ class HomeScreen extends ConsumerWidget {
                 loading: () => const SizedBox.shrink(),
                 error: (_, __) => const SizedBox.shrink(),
               ),
-              const SizedBox(width: 8),
-              GestureDetector(
+              const SizedBox(width: 12),
+              HolographicAvatar(
+                uid: user?.uid ?? '',
+                radius: 20,
+                fallbackPhotoUrl: user?.photoUrl,
+                fallbackName: user?.displayName,
+                heroTag: 'profile_avatar',
                 onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
-                child: Hero(
-                  tag: 'profile_avatar',
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: AppColors.primaryLight,
-                    backgroundImage: user?.photoUrl != null
-                        ? CachedNetworkImageProvider(user!.photoUrl!)
-                        : null,
-                    child: user?.photoUrl == null
-                        ? const Icon(Icons.person, color: Colors.white)
-                        : null,
-                  ),
-                ),
               ),
             ],
-          )
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildChatTile(BuildContext context, ChatModel chat, String? currentUserId) {
+  Widget _buildChatTile(
+    BuildContext context,
+    ChatModel chat,
+    String? currentUserId,
+  ) {
     if (currentUserId == null) return const SizedBox.shrink();
 
-    String otherUserId = chat.participants.firstWhere((id) => id != currentUserId, orElse: () => '');
+    String otherUserId = chat.participants.firstWhere(
+      (id) => id != currentUserId,
+      orElse: () => '',
+    );
     String otherUserName = chat.participantNames[otherUserId] ?? 'Unknown';
     String? otherUserPhoto = chat.participantPhotos[otherUserId];
-    
+
     bool isUnread = (chat.unreadCount[currentUserId] ?? 0) > 0;
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-      onTap: () {
-        Navigator.pushNamed(
-          context,
-          AppRoutes.chat,
-          arguments: {
-            'chatId': chat.id,
-            'otherUserId': otherUserId,
-            'otherUserName': otherUserName,
-            'otherUserPhoto': otherUserPhoto,
-          },
-        );
-      },
-      leading: Stack(
-        children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: AppColors.primaryLight.withOpacity(0.5),
-            backgroundImage: otherUserPhoto != null
-                ? CachedNetworkImageProvider(otherUserPhoto)
-                : null,
-            child: otherUserPhoto == null
-                ? Text(otherUserName.substring(0, 1).toUpperCase())
-                : null,
-          ),
-          // Online indicator could be added here if we track it in ChatModel or load separate stream
-        ],
-      ),
-      title: Text(
-        otherUserName,
-        style: TextStyle(
-          fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
-          fontSize: 16,
-        ),
-      ),
-      subtitle: Text(
-        chat.lastMessage,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontWeight: isUnread ? FontWeight.w600 : FontWeight.normal,
-          color: isUnread ? Theme.of(context).colorScheme.primary : Colors.grey,
-        ),
-      ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            _formatTime(chat.lastMessageTime),
-            style: TextStyle(
-              fontSize: 12,
-              color: isUnread ? Theme.of(context).colorScheme.primary : Colors.grey,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isUnread
+                ? Colors.white.withOpacity(0.08)
+                : AppColors.glassBase,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isUnread
+                  ? AppColors.radiantViolet.withOpacity(0.3)
+                  : AppColors.glassBorder,
+              width: 1,
             ),
           ),
-          if (isUnread) ...[
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
+            onTap: () {
+              Navigator.pushNamed(
+                context,
+                AppRoutes.chat,
+                arguments: {
+                  'chatId': chat.id,
+                  'otherUserId': otherUserId,
+                  'otherUserName': otherUserName,
+                  'otherUserPhoto': otherUserPhoto,
+                },
+              );
+            },
+            leading: Stack(
+              children: [
+                HolographicAvatar(
+                  uid: otherUserId,
+                  radius: 26,
+                  fallbackPhotoUrl: otherUserPhoto,
+                  fallbackName: otherUserName,
+                ),
+                if (isUnread)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: AppColors.electricRose,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.obsidianBase,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            title: Text(
+              otherUserName,
+              style: GoogleFonts.outfit(
+                fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
+                fontSize: 17,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4.0),
               child: Text(
-                '${chat.unreadCount[currentUserId]}',
-                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                chat.lastMessage,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.outfit(
+                  fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal,
+                  color: isUnread
+                      ? Theme.of(context).colorScheme.onSurface
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 14,
+                ),
               ),
-            )
-          ]
-        ],
+            ),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _formatTime(chat.lastMessageTime),
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    color: isUnread
+                        ? AppColors.radiantViolet
+                        : AppColors.textMuted,
+                  ),
+                ),
+                if (isUnread) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.radiantViolet,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${chat.unreadCount[currentUserId]}',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -233,7 +356,7 @@ class HomeScreen extends ConsumerWidget {
     // A production app would use packages like intl or timeago
     final now = DateTime.now();
     final difference = now.difference(time);
-    
+
     if (difference.inDays > 0) {
       return '${time.month}/${time.day}';
     } else {
