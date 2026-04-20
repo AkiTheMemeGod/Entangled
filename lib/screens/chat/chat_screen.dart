@@ -293,7 +293,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isOtherUserTyping = chatDocAsyncValue.when(
       data: (chat) => chat?.typingUsers.contains(widget.otherUserId) ?? false,
       loading: () => false,
-      error: (_, __) => false,
+      error: (error, stackTrace) => false,
     );
 
     final isSelectionMode = _selectedMessageIds.isNotEmpty;
@@ -307,7 +307,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
             child: AppBar(
               backgroundColor: isSelectionMode
-                  ? AppColors.radiantViolet.withOpacity(0.2)
+                  ? AppColors.radiantViolet.withAlpha(51)
                   : Colors.transparent,
               elevation: 0,
               leading: IconButton(
@@ -425,7 +425,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppColors.radiantViolet.withOpacity(0.15)
+                ? AppColors.radiantViolet.withAlpha(38)
                 : Colors.transparent,
           ),
           child: Column(
@@ -446,6 +446,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       fallbackPhotoUrl: widget.otherUserPhoto,
                       fallbackName: widget.otherUserName,
                       showGlow: false,
+                      heroTag: null,
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -458,19 +459,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               vertical: 6,
                             ),
                       decoration: BoxDecoration(
-                        gradient: isMe && !message.isDeleted
-                            ? const LinearGradient(
-                                colors: [
-                                  AppColors.radiantViolet,
-                                  AppColors.electricRose,
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              )
-                            : null,
                         color: message.isDeleted
-                            ? AppColors.glassHeavy.withOpacity(0.4)
-                            : (isMe ? null : AppColors.glassHeavy),
+                            ? (Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white10
+                                  : Colors.black12)
+                            : (isMe
+                                  ? (Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.primary.withAlpha(46)
+                                        : Theme.of(
+                                            context,
+                                          ).colorScheme.primary.withAlpha(31))
+                                  : (Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.white.withAlpha(20)
+                                        : Colors.black.withAlpha(20))),
                         borderRadius: BorderRadius.only(
                           topLeft: const Radius.circular(16),
                           topRight: const Radius.circular(16),
@@ -480,14 +485,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         boxShadow: isMe && !message.isDeleted
                             ? [
                                 BoxShadow(
-                                  color: AppColors.radiantViolet.withOpacity(
-                                    0.15,
-                                  ),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withAlpha(31),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
                               ]
                             : [],
+                        border:
+                            !isMe &&
+                                !message.isDeleted &&
+                                Theme.of(context).brightness == Brightness.light
+                            ? Border.all(color: Colors.black.withAlpha(13))
+                            : null,
                       ),
                       child: message.isDeleted
                           ? Padding(
@@ -501,13 +512,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   Icon(
                                     Icons.block_flipped,
                                     size: 14,
-                                    color: Colors.white.withOpacity(0.5),
+                                    color: Colors.white.withAlpha(128),
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     'This message was deleted',
                                     style: GoogleFonts.outfit(
-                                      color: Colors.white.withOpacity(0.5),
+                                      color: Colors.white.withAlpha(128),
                                       fontSize: 14,
                                       fontStyle: FontStyle.italic,
                                     ),
@@ -528,7 +539,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       vertical: 3,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.15),
+                                      color: Colors.black.withAlpha(38),
                                       borderRadius: BorderRadius.circular(6),
                                       border: Border(
                                         left: BorderSide(
@@ -564,7 +575,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                           style: GoogleFonts.outfit(
                                             fontSize: 9,
                                             color: isMe
-                                                ? Colors.white.withOpacity(0.8)
+                                                ? Colors.white.withAlpha(204)
                                                 : Colors.white70,
                                           ),
                                         ),
@@ -598,7 +609,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       message.text ?? '',
                                       style: GoogleFonts.outfit(
                                         color: isMe
-                                            ? Colors.white
+                                            ? (Theme.of(context).brightness ==
+                                                      Brightness.dark
+                                                  ? Colors.white
+                                                  : Theme.of(
+                                                      context,
+                                                    ).colorScheme.onSurface)
                                             : Theme.of(
                                                 context,
                                               ).colorScheme.onSurface,
@@ -628,12 +644,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     bool onImage = false,
   }) {
     final textColor = onImage
-        ? Colors.white.withOpacity(0.9)
+        ? Colors.white.withAlpha(230)
         : (isMe
-              ? Colors.white.withOpacity(0.7)
-              : Theme.of(
-                  context,
-                ).colorScheme.onSurfaceVariant.withOpacity(0.7));
+              ? Colors.white.withAlpha(179)
+              : Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(179));
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -670,7 +684,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       decoration: BoxDecoration(
         color: Colors.transparent,
         border: Border(
-          top: BorderSide(color: AppColors.glassBorder.withOpacity(0.1)),
+          top: BorderSide(color: AppColors.glassBorder.withAlpha(26)),
         ),
       ),
       child: Column(
@@ -813,7 +827,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.radiantViolet.withOpacity(0.3),
+                            color: AppColors.radiantViolet.withAlpha(77),
                             blurRadius: 10,
                             spreadRadius: 1,
                           ),
@@ -929,7 +943,7 @@ class _SwipeToReplyWrapperState extends State<SwipeToReplyWrapper>
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.radiantViolet.withOpacity(0.2),
+                  color: AppColors.radiantViolet.withAlpha(51),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
