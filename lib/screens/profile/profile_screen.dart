@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:entangled/widgets/holographic_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -34,9 +33,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.photo_library,
-                color: AppColors.radiantViolet,
+                color: Theme.of(context).colorScheme.primary,
               ),
               title: Text(
                 'Gallery',
@@ -47,9 +46,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.camera_alt,
-                color: AppColors.electricRose,
+                color: Theme.of(context).colorScheme.secondary,
               ),
               title: Text(
                 'Camera',
@@ -170,9 +169,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               color: Colors.black45,
                               shape: BoxShape.circle,
                             ),
-                            child: const Center(
+                            child: Center(
                               child: CircularProgressIndicator(
-                                color: AppColors.radiantViolet,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                           ),
@@ -185,17 +184,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: AppColors.radiantViolet,
+                              color: Theme.of(context).colorScheme.primary,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: AppColors.obsidianBase,
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? AppColors.obsidianBase
+                                    : Colors.white,
                                 width: 3,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.radiantViolet.withOpacity(
-                                    0.4,
-                                  ),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withAlpha(102),
                                   blurRadius: 10,
                                   spreadRadius: 2,
                                 ),
@@ -245,7 +248,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         icon: const Icon(Icons.logout_rounded),
                         label: const Text('Sign Out'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent.withOpacity(0.1),
+                          backgroundColor: Colors.redAccent.withAlpha(26),
                           foregroundColor: Colors.redAccent,
                           side: const BorderSide(
                             color: Colors.redAccent,
@@ -261,13 +264,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             );
           },
-          loading: () => const Center(
-            child: CircularProgressIndicator(color: AppColors.radiantViolet),
+          loading: () => Center(
+            child: CircularProgressIndicator(
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
           error: (err, stack) => Center(
             child: Text(
               'Error: $err',
-              style: const TextStyle(color: Colors.white),
+              style: GoogleFonts.outfit(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           ),
         ),
