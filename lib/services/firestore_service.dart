@@ -28,8 +28,12 @@ class FirestoreService {
   }
 
   Future<void> updateFCMToken(String uid, String token) async {
+    await _firestore.collection('users').doc(uid).update({'fcmToken': token});
+  }
+
+  Future<void> updateUserPhotoUrl(String uid, String photoUrl) async {
     await _firestore.collection('users').doc(uid).update({
-      'fcmToken': token,
+      'photoUrl': photoUrl,
     });
   }
 
@@ -38,9 +42,12 @@ class FirestoreService {
         .collection('users')
         .where('email', isEqualTo: email)
         .get();
-        
+
     return result.docs
-        .map((doc) => UserModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+        .map(
+          (doc) =>
+              UserModel.fromMap(doc.data() as Map<String, dynamic>, doc.id),
+        )
         .toList();
   }
 
@@ -57,7 +64,7 @@ class FirestoreService {
   Future<void> sendFriendRequest(UserModel from, UserModel to) async {
     final requestId = '${from.uid}_${to.uid}';
     final doc = _firestore.collection('friend_requests').doc(requestId);
-    
+
     final request = FriendRequestModel(
       id: requestId,
       fromId: from.uid,
@@ -78,19 +85,27 @@ class FirestoreService {
         .where('toId', isEqualTo: uid)
         .where('status', isEqualTo: 'pending')
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => FriendRequestModel.fromMap(doc.data(), doc.id))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => FriendRequestModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
   }
 
   Future<String> getFriendshipStatus(String myUid, String otherUid) async {
     // Check if friends
-    final outReq = await _firestore.collection('friend_requests').doc('${myUid}_${otherUid}').get();
+    final outReq = await _firestore
+        .collection('friend_requests')
+        .doc('${myUid}_${otherUid}')
+        .get();
     if (outReq.exists) {
       return outReq.get('status') == 'accepted' ? 'friends' : 'pending_sent';
     }
 
-    final inReq = await _firestore.collection('friend_requests').doc('${otherUid}_${myUid}').get();
+    final inReq = await _firestore
+        .collection('friend_requests')
+        .doc('${otherUid}_${myUid}')
+        .get();
     if (inReq.exists) {
       return inReq.get('status') == 'accepted' ? 'friends' : 'pending_received';
     }
@@ -98,7 +113,10 @@ class FirestoreService {
     return 'none';
   }
 
-  Future<void> acceptFriendRequest(FriendRequestModel request, UserModel currentUser) async {
+  Future<void> acceptFriendRequest(
+    FriendRequestModel request,
+    UserModel currentUser,
+  ) async {
     // 1. Update request status
     await _firestore.collection('friend_requests').doc(request.id).update({
       'status': 'accepted',
@@ -131,7 +149,20 @@ class FirestoreService {
         });
   }
 
-  Future<String> createOrGetChat(String currentUid, UserModel otherUser, UserModel currentUser) async {
+  Stream<ChatModel?> streamChat(String chatId) {
+    return _firestore.collection('chats').doc(chatId).snapshots().map((doc) {
+      if (doc.exists) {
+        return ChatModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      }
+      return null;
+    });
+  }
+
+  Future<String> createOrGetChat(
+    String currentUid,
+    UserModel otherUser,
+    UserModel currentUser,
+  ) async {
     QuerySnapshot existingChats = await _firestore
         .collection('chats')
         .where('participants', arrayContains: currentUid)
@@ -139,7 +170,9 @@ class FirestoreService {
 
     for (var doc in existingChats.docs) {
       List participants = doc['participants'];
-      if (participants.contains(otherUser.uid) && participants.length == 2 && doc['type'] == 'individual') {
+      if (participants.contains(otherUser.uid) &&
+          participants.length == 2 &&
+          doc['type'] == 'individual') {
         return doc.id;
       }
     }
@@ -171,7 +204,7 @@ class FirestoreService {
   }
 
   // Messages
-  Stream<List<MessageModel>> streamMessages(String chatId) {
+  Stream<List<MessageModel>> streamMessages(String chatId, String currentUid) {
     return _firestore
         .collection('chats')
         .doc(chatId)
@@ -179,12 +212,65 @@ class FirestoreService {
         .orderBy('timestamp', descending: true)
         .limit(50)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => MessageModel.fromMap(doc.data(), doc.id))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => MessageModel.fromMap(doc.data(), doc.id))
+              .where((msg) => !msg.deletedBy.contains(currentUid))
+              .toList(),
+        );
   }
 
-  Future<void> sendMessage(String chatId, MessageModel message, String currentUid, String otherUid) async {
+  Future<void> deleteMessageForMe(
+    String chatId,
+    String messageId,
+    String userId,
+  ) async {
+    await _firestore
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageId)
+        .update({
+          'deletedBy': FieldValue.arrayUnion([userId]),
+        });
+  }
+
+  Future<void> deleteMessageForAll(String chatId, String messageId) async {
+    final batch = _firestore.batch();
+    final msgDoc = _firestore
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageId);
+
+    batch.update(msgDoc, {
+      'text': null,
+      'imageUrl': null,
+      'isDeleted': true,
+      'type': 'text', // Reset type to text for the placeholder
+    });
+
+    // Check if it's the last message in the chat to update the preview
+    final chatDoc = await _firestore.collection('chats').doc(chatId).get();
+    if (chatDoc.exists) {
+      final lastMsgSenderId = chatDoc.get('lastMessageSenderId');
+      // This is a bit simplified, but typical. If we wanted to be 100% sure,
+      // we'd check if this messageId matches the hidden last message ID if we tracked it.
+      // For now, we'll just update the text preview always if we're deleting for all.
+      batch.update(chatDoc.reference, {
+        'lastMessage': '🚫 This message was deleted',
+      });
+    }
+
+    await batch.commit();
+  }
+
+  Future<void> sendMessage(
+    String chatId,
+    MessageModel message,
+    String currentUid,
+    String otherUid,
+  ) async {
     DocumentReference msgDoc = _firestore
         .collection('chats')
         .doc(chatId)
@@ -202,7 +288,11 @@ class FirestoreService {
     });
   }
 
-  Future<void> markMessagesAsRead(String chatId, String uid, String otherUid) async {
+  Future<void> markMessagesAsRead(
+    String chatId,
+    String uid,
+    String otherUid,
+  ) async {
     // Reset unread count on the chat document
     await _firestore.collection('chats').doc(chatId).update({
       'unreadCount.$uid': 0,
@@ -236,10 +326,43 @@ class FirestoreService {
 
   Future<void> setTypingStatus(String chatId, String uid, bool isTyping) async {
     await _firestore.collection('chats').doc(chatId).update({
-      'typingUsers': isTyping 
-          ? FieldValue.arrayUnion([uid]) 
+      'typingUsers': isTyping
+          ? FieldValue.arrayUnion([uid])
           : FieldValue.arrayRemove([uid]),
     });
   }
-}
 
+  Future<void> updateUserInAllChats(
+    String uid, {
+    String? photoUrl,
+    String? displayName,
+  }) async {
+    // 1. Find all chats where user is a participant
+    QuerySnapshot chats = await _firestore
+        .collection('chats')
+        .where('participants', arrayContains: uid)
+        .get();
+
+    if (chats.docs.isEmpty) return;
+
+    // 2. Prepare updates using a batch
+    WriteBatch batch = _firestore.batch();
+
+    for (var doc in chats.docs) {
+      Map<String, dynamic> updates = {};
+      if (photoUrl != null) {
+        updates['participantPhotos.$uid'] = photoUrl;
+      }
+      if (displayName != null) {
+        updates['participantNames.$uid'] = displayName;
+      }
+
+      if (updates.isNotEmpty) {
+        batch.update(doc.reference, updates);
+      }
+    }
+
+    // 3. Commit the batch
+    await batch.commit();
+  }
+}
