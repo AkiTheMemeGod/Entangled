@@ -1,0 +1,101 @@
+import * as functions from "firebase-functions/v1";
+import * as admin from "firebase-admin";
+
+admin.initializeApp();
+
+const db = admin.firestore();
+const fcm = admin.messaging();
+
+/**
+ * Triggered whenever a new message document is created in:
+ *   /chats/{chatId}/messages/{messageId}
+ *
+ * It looks up the recipient's FCM token from their user document
+ * and sends them a push notification.
+ */
+export const onNewMessage = functions.firestore
+  .document("chats/{chatId}/messages/{messageId}")
+  .onCreate(async (snapshot, context) => {
+    const message = snapshot.data();
+    if (!message) return null;
+
+    const { chatId } = context.params;
+    const senderId: string = message.senderId;
+    const senderName: string = message.senderName ?? "Someone";
+    const text: string = message.text ?? "📷 Sent an image";
+
+    // Get the chat document to find the other participant
+    const chatDoc = await db.collection("chats").doc(chatId).get();
+    if (!chatDoc.exists) return null;
+
+    const chatData = chatDoc.data()!;
+    const participants: string[] = chatData.participants ?? [];
+
+    // Find the recipient (anyone who isn't the sender)
+    const recipientIds = participants.filter((uid) => uid !== senderId);
+    if (recipientIds.length === 0) return null;
+
+    // Send a notification to each recipient
+    const sendPromises = recipientIds.map(async (recipientId) => {
+      // Fetch recipient's FCM token
+      const userDoc = await db.collection("users").doc(recipientId).get();
+      if (!userDoc.exists) return;
+
+      const userData = userDoc.data()!;
+      const fcmToken: string | undefined = userData.fcmToken;
+
+      if (!fcmToken) {
+        console.log(`No FCM token for user: ${recipientId}`);
+        return;
+      }
+
+      // Check unread count — skip notification if recipient is actively reading (count already 0)
+      // This is a simple heuristic; a more robust solution tracks online status
+      const unreadCount = chatData.unreadCount?.[recipientId] ?? 0;
+      // We still send — the app handles suppressing if the chat is open
+
+      const payload: admin.messaging.Message = {
+        token: fcmToken,
+        notification: {
+          title: senderName,
+          body: text.length > 100 ? text.substring(0, 100) + "…" : text,
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "entangled_messages",
+            clickAction: "FLUTTER_NOTIFICATION_CLICK",
+            sound: "default",
+          },
+        },
+        data: {
+          chatId: chatId,
+          senderId: senderId,
+          senderName: senderName,
+          // Pass unreadCount so app can badge
+          unreadCount: String(unreadCount + 1),
+          // Type used by Flutter to route the notification tap
+          type: "new_message",
+        },
+      };
+
+      try {
+        await fcm.send(payload);
+        console.log(`Notification sent to ${recipientId}`);
+      } catch (err: unknown) {
+        const error = err as { code?: string };
+        // Clean up stale tokens
+        if (
+          error.code === "messaging/registration-token-not-registered" ||
+          error.code === "messaging/invalid-registration-token"
+        ) {
+          console.warn(`Stale FCM token for ${recipientId}, removing...`);
+          await db.collection("users").doc(recipientId).update({ fcmToken: admin.firestore.FieldValue.delete() });
+        } else {
+          console.error(`Failed to send notification to ${recipientId}:`, err);
+        }
+      }
+    });
+
+    return Promise.all(sendPromises);
+  });
