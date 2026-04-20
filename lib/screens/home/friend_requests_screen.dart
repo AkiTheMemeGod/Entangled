@@ -33,7 +33,9 @@ class FriendRequestsScreen extends ConsumerWidget {
                     Icon(
                       Icons.people_outline_rounded,
                       size: 64,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.3),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withAlpha(77),
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -56,7 +58,9 @@ class FriendRequestsScreen extends ConsumerWidget {
                   padding: const EdgeInsets.only(bottom: 12.0),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: AppColors.isDarkMode(context) ? AppColors.glassHeavy : Colors.white.withOpacity(0.5),
+                      color: AppColors.isDarkMode(context)
+                          ? AppColors.glassHeavy
+                          : Colors.white.withAlpha(128),
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(
                         color: AppColors.glassBorder,
@@ -187,12 +191,13 @@ class _ActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: isPrimary
               ? AppColors.radiantViolet
-              : (color ?? Theme.of(context).colorScheme.onSurfaceVariant).withOpacity(0.1),
+              : (color ?? Theme.of(context).colorScheme.onSurfaceVariant)
+                    .withAlpha(26),
           shape: BoxShape.circle,
           boxShadow: isPrimary
               ? [
                   BoxShadow(
-                    color: AppColors.radiantViolet.withOpacity(0.3),
+                    color: AppColors.radiantViolet.withAlpha(77),
                     blurRadius: 8,
                     spreadRadius: 1,
                   ),
@@ -201,7 +206,9 @@ class _ActionButton extends StatelessWidget {
         ),
         child: Icon(
           icon,
-          color: isPrimary ? Colors.white : (color ?? Theme.of(context).colorScheme.onSurfaceVariant),
+          color: isPrimary
+              ? Colors.white
+              : (color ?? Theme.of(context).colorScheme.onSurfaceVariant),
           size: 20,
         ),
       ),
