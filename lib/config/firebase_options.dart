@@ -31,10 +31,7 @@ class DefaultFirebaseOptions {
           'you can reconfigure this by running the FlutterFire CLI again.',
         );
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -62,5 +59,13 @@ class DefaultFirebaseOptions {
     projectId: 'entangled-923cd',
     storageBucket: 'entangled-923cd.firebasestorage.app',
     iosBundleId: 'com.entangled.app',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyAsFUcPedI66QhGWbrLAlEszfnTV9wxlZI',
+    appId: '1:422407154627:windows:64d02ac7357e3f8254ab76',
+    messagingSenderId: '422407154627',
+    projectId: 'entangled-923cd',
+    storageBucket: 'entangled-923cd.firebasestorage.app',
   );
 }
