@@ -10,6 +10,8 @@ class MessageModel {
   final Map<String, dynamic>? replyTo; // {id, text, sender}
   final String status; // "sent", "delivered", "read"
   final List<String> readBy;
+  final List<String> deletedBy;
+  final bool isDeleted;
   final DateTime timestamp;
 
   MessageModel({
@@ -22,6 +24,8 @@ class MessageModel {
     this.replyTo,
     required this.status,
     required this.readBy,
+    this.deletedBy = const [],
+    this.isDeleted = false,
     required this.timestamp,
   });
 
@@ -36,6 +40,8 @@ class MessageModel {
       replyTo: map['replyTo'] != null ? Map<String, dynamic>.from(map['replyTo']) : null,
       status: map['status'] ?? 'sent',
       readBy: List<String>.from(map['readBy'] ?? []),
+      deletedBy: List<String>.from(map['deletedBy'] ?? []),
+      isDeleted: map['isDeleted'] ?? false,
       timestamp: (map['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -50,6 +56,8 @@ class MessageModel {
       if (replyTo != null) 'replyTo': replyTo,
       'status': status,
       'readBy': readBy,
+      'deletedBy': deletedBy,
+      'isDeleted': isDeleted,
       'timestamp': Timestamp.fromDate(timestamp), // use FieldValue.serverTimestamp() when sending
     };
   }
