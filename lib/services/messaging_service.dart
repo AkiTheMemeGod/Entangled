@@ -32,7 +32,7 @@ class MessagingService {
         });
       }
     } catch (e) {
-      print('FCM initialization error: $e');
+      //print('FCM initialization error: $e');
     }
   }
 
@@ -47,7 +47,7 @@ class MessagingService {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     } catch (e) {
       // Silently handle platform-specific errors
-      print('FCM background setup skipped: $e');
+      //print('FCM background setup skipped: $e');
     }
   }
 }
