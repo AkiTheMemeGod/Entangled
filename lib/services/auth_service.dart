@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 
 import '../models/user_model.dart';
 import 'firestore_service.dart';
@@ -8,10 +10,25 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
 
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
-  User? get currentUser => _auth.currentUser;
+  Stream<User?> get authStateChanges {
+    // Firebase Auth has threading issues on Windows
+    if (kIsWeb || Platform.isWindows) {
+      return Stream.value(null);
+    }
+    return _auth.authStateChanges();
+  }
+
+  User? get currentUser {
+    if (kIsWeb || Platform.isWindows) {
+      return null;
+    }
+    return _auth.currentUser;
+  }
 
   Future<UserModel?> signInWithEmail(String email, String password) async {
+    if (kIsWeb || Platform.isWindows) {
+      throw UnsupportedError('Authentication not supported on this platform');
+    }
     try {
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
@@ -37,6 +54,9 @@ class AuthService {
     String password,
     String displayName,
   ) async {
+    if (kIsWeb || Platform.isWindows) {
+      throw UnsupportedError('Authentication not supported on this platform');
+    }
     try {
       UserCredential userCredential = await _auth
           .createUserWithEmailAndPassword(email: email, password: password);
@@ -62,6 +82,9 @@ class AuthService {
   }
 
   Future<UserModel?> signInWithGoogle() async {
+    if (kIsWeb || Platform.isWindows) {
+      throw UnsupportedError('Google Sign In not supported on this platform');
+    }
     try {
       await GoogleSignIn.instance.initialize();
       final GoogleSignInAccount googleUser = await GoogleSignIn.instance
@@ -107,6 +130,9 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    if (kIsWeb || Platform.isWindows) {
+      return;
+    }
     try {
       User? user = _auth.currentUser;
       if (user != null) {
