@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/message_model.dart';
@@ -16,6 +17,10 @@ import '../../theme/app_colors.dart';
 import '../../widgets/animated_gradient_bg.dart';
 import '../../widgets/holographic_avatar.dart';
 import '../../widgets/lifeline_monitor.dart';
+import '../../widgets/audio_player_widget.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
@@ -43,6 +48,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final Set<String> _selectedMessageIds = {};
   MessageModel? _replyingTo;
 
+  final _audioRecorder = AudioRecorder();
+  bool _isRecording = false;
+  bool _isRecordingStopInProgress = false;
+  bool _recordingWillCancel = false;
+  double _recordingSwipeDx = 0;
+  Duration _recordingDuration = Duration.zero;
+  Timer? _recordingTimer;
+  DateTime? _recordingStartedAt;
+
+  static const double _recordingCancelThreshold = -110;
+  static const Duration _minVoiceNoteDuration = Duration(milliseconds: 500);
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +73,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
     _scrollController.dispose();
+    _audioRecorder.dispose();
+    _recordingTimer?.cancel();
     super.dispose();
   }
 
@@ -138,6 +157,163 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           currentUser.uid,
           widget.otherUserId,
         );
+  }
+
+  Future<void> _startRecording() async {
+    if (_isRecording || _isRecordingStopInProgress) return;
+
+    try {
+      final status = await Permission.microphone.request();
+      if (status.isGranted) {
+        if (await _audioRecorder.hasPermission()) {
+          final directory = await getApplicationDocumentsDirectory();
+          final filePath =
+              '${directory.path}/voice_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+          await _audioRecorder.start(
+            const RecordConfig(encoder: AudioEncoder.aacLc),
+            path: filePath,
+          );
+
+          _recordingStartedAt = DateTime.now();
+
+          setState(() {
+            _isRecording = true;
+            _recordingWillCancel = false;
+            _recordingSwipeDx = 0;
+            _recordingDuration = Duration.zero;
+          });
+
+          HapticFeedback.lightImpact();
+
+          _recordingTimer = Timer.periodic(const Duration(milliseconds: 120), (
+            timer,
+          ) {
+            final startedAt = _recordingStartedAt;
+            if (startedAt == null) return;
+
+            setState(() {
+              _recordingDuration = DateTime.now().difference(startedAt);
+            });
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error starting recording: $e");
+    }
+  }
+
+  Future<void> _stopRecording({bool cancel = false}) async {
+    if (_isRecordingStopInProgress) return;
+    _isRecordingStopInProgress = true;
+
+    _recordingTimer?.cancel();
+
+    final startedAt = _recordingStartedAt;
+    final elapsed = startedAt == null
+        ? _recordingDuration
+        : DateTime.now().difference(startedAt);
+
+    String? path;
+    try {
+      path = await _audioRecorder.stop();
+    } catch (_) {
+      path = null;
+    }
+
+    final shouldCancel =
+        cancel || _recordingWillCancel || elapsed < _minVoiceNoteDuration;
+
+    setState(() {
+      _isRecording = false;
+      _recordingWillCancel = false;
+      _recordingSwipeDx = 0;
+      _recordingDuration = elapsed;
+    });
+
+    _recordingStartedAt = null;
+
+    if (shouldCancel || path == null) {
+      if (path != null) {
+        try {
+          File(path).delete();
+        } catch (_) {}
+      }
+
+      if (!cancel && elapsed < _minVoiceNoteDuration && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Voice note too short', style: GoogleFonts.outfit()),
+            duration: const Duration(milliseconds: 900),
+          ),
+        );
+      }
+
+      _isRecordingStopInProgress = false;
+      return;
+    }
+
+    try {
+      // Send audio message
+      final file = File(path);
+      final storageService = ref.read(storageServiceProvider);
+      final firestoreService = ref.read(firestoreServiceProvider);
+      final currentUser = ref.read(currentUserProvider).value;
+      if (currentUser == null) return;
+
+      final audioUrl = await storageService.uploadChatAudio(
+        widget.chatId,
+        file,
+      );
+      if (audioUrl != null) {
+        final message = MessageModel(
+          id: const Uuid().v4(),
+          senderId: currentUser.uid,
+          senderName: currentUser.displayName,
+          audioUrl: audioUrl,
+          audioDurationMs: _recordingDuration.inMilliseconds,
+          type: 'audio',
+          status: 'sent',
+          readBy: [],
+          timestamp: DateTime.now(),
+        );
+
+        await firestoreService.sendMessage(
+          widget.chatId,
+          message,
+          currentUser.uid,
+          widget.otherUserId,
+        );
+      }
+    } finally {
+      _isRecordingStopInProgress = false;
+    }
+  }
+
+  String _formatRecordingDuration(Duration d) {
+    final minutes = d.inMinutes.toString().padLeft(2, '0');
+    final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  void _onRecordingSlideUpdate(LongPressMoveUpdateDetails details) {
+    if (!_isRecording) return;
+
+    final dx = details.offsetFromOrigin.dx;
+    final shouldCancel = dx <= _recordingCancelThreshold;
+    if (shouldCancel != _recordingWillCancel) {
+      HapticFeedback.selectionClick();
+    }
+
+    setState(() {
+      _recordingSwipeDx = dx;
+      _recordingWillCancel = shouldCancel;
+    });
+  }
+
+  Future<void> _finishRecordingFromGesture() async {
+    if (!_isRecording) return;
+    await _stopRecording(cancel: _recordingWillCancel);
   }
 
   void _toggleMessageSelection(String messageId) {
@@ -351,6 +527,57 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ],
                     ),
               actions: [
+                if (!isSelectionMode)
+                  PopupMenuButton(
+                    icon: const Icon(Icons.more_vert_rounded),
+                    color: AppColors.obsidianBase,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: AppColors.glassBorder),
+                    ),
+                    itemBuilder: (BuildContext context) => [
+                      PopupMenuItem(
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.block_rounded,
+                              color: AppColors.electricRose,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Block User',
+                              style: GoogleFonts.outfit(
+                                color: AppColors.electricRose,
+                              ),
+                            ),
+                          ],
+                        ),
+                        onTap: () async {
+                          final firestore = ref.read(firestoreServiceProvider);
+                          final current = ref.read(currentUserProvider).value;
+                          if (current != null) {
+                            await firestore.blockUser(
+                              current.uid,
+                              widget.otherUserId,
+                            );
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'User blocked',
+                                    style: GoogleFonts.outfit(),
+                                  ),
+                                  backgroundColor: AppColors.obsidianBase,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                 if (isSelectionMode)
                   IconButton(
                     icon: const Icon(
@@ -602,6 +829,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       fit: BoxFit.cover,
                                     ),
                                   )
+                                else if (message.type == 'audio' &&
+                                    message.audioUrl != null)
+                                  AudioPlayerWidget(
+                                    audioUrl: message.audioUrl!,
+                                    isMe: isMe,
+                                    initialDurationMs: message.audioDurationMs,
+                                  )
                                 else
                                   Padding(
                                     padding: const EdgeInsets.only(right: 2.0),
@@ -784,62 +1018,204 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        style: GoogleFonts.outfit(
-                          fontSize: 15,
-                          color: Theme.of(context).colorScheme.onSurface,
+                    if (_isRecording)
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isCompact = constraints.maxWidth < 290;
+
+                            return Row(
+                              children: [
+                                Icon(
+                                  _recordingWillCancel
+                                      ? Icons.delete_outline_rounded
+                                      : Icons.mic_rounded,
+                                  color: _recordingWillCancel
+                                      ? Colors.redAccent
+                                      : AppColors.electricRose,
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child:
+                                      Text(
+                                            _recordingWillCancel
+                                                ? 'Release to cancel'
+                                                : 'Recording ${_formatRecordingDuration(_recordingDuration)}',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              color: _recordingWillCancel
+                                                  ? Colors.redAccent
+                                                  : AppColors.electricRose,
+                                            ),
+                                          )
+                                          .animate(
+                                            onPlay: (controller) => controller
+                                                .repeat(reverse: true),
+                                          )
+                                          .fade(
+                                            duration: 800.ms,
+                                            begin: 0.6,
+                                            end: 1.0,
+                                          ),
+                                ),
+                                if (!isCompact) ...[
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Transform.translate(
+                                        offset: Offset(
+                                          _recordingSwipeDx.clamp(-70, 0),
+                                          0,
+                                        ),
+                                        child:
+                                            Text(
+                                                  _recordingWillCancel
+                                                      ? 'Canceling...'
+                                                      : '< Slide left to cancel',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.fade,
+                                                  softWrap: false,
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 13,
+                                                    color: _recordingWillCancel
+                                                        ? Colors.redAccent
+                                                        : Theme.of(context)
+                                                              .colorScheme
+                                                              .onSurfaceVariant,
+                                                  ),
+                                                )
+                                                .animate(
+                                                  onPlay: (controller) =>
+                                                      controller.repeat(
+                                                        reverse: false,
+                                                      ),
+                                                )
+                                                .slideX(
+                                                  duration: 1.seconds,
+                                                  begin: 0.15,
+                                                  end: -0.15,
+                                                )
+                                                .fade(begin: 0.25, end: 1.0),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            );
+                          },
                         ),
-                        decoration: InputDecoration(
-                          hintText: 'Message...',
-                          hintStyle: GoogleFonts.outfit(
-                            fontSize: 14,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                      )
+                    else
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          filled: false,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 10,
+                          decoration: InputDecoration(
+                            hintText: 'Message...',
+                            hintStyle: GoogleFonts.outfit(
+                              fontSize: 14,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 10,
+                            ),
                           ),
                         ),
                       ),
-                    ),
                     const SizedBox(width: 8),
-                    AnimatedContainer(
-                      duration: 200.ms,
-                      height: 40,
-                      width: 40,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            AppColors.radiantViolet,
-                            AppColors.electricRose,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.radiantViolet.withAlpha(77),
-                            blurRadius: 10,
-                            spreadRadius: 1,
+                    GestureDetector(
+                      onLongPressStart:
+                          _messageController.text.trim().isEmpty &&
+                              _replyingTo == null
+                          ? (_) => _startRecording()
+                          : null,
+                      onLongPressMoveUpdate:
+                          _messageController.text.trim().isEmpty &&
+                              _replyingTo == null
+                          ? _onRecordingSlideUpdate
+                          : null,
+                      onLongPressEnd:
+                          _messageController.text.trim().isEmpty &&
+                              _replyingTo == null
+                          ? (_) => _finishRecordingFromGesture()
+                          : null,
+                      onLongPressCancel:
+                          _messageController.text.trim().isEmpty &&
+                              _replyingTo == null
+                          ? _finishRecordingFromGesture
+                          : null,
+                      child: AnimatedContainer(
+                        duration: 200.ms,
+                        height: 40,
+                        width: 40,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: _isRecording
+                                ? [
+                                    AppColors.electricRose,
+                                    const Color(0xFFE53935),
+                                  ]
+                                : [
+                                    AppColors.radiantViolet,
+                                    AppColors.electricRose,
+                                  ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                        ],
-                      ),
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.arrow_upward_rounded,
-                          color: Colors.white,
-                          size: 20,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  (_isRecording
+                                          ? AppColors.electricRose
+                                          : AppColors.radiantViolet)
+                                      .withAlpha(77),
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                          ],
                         ),
-                        onPressed: _sendMessage,
+                        child: IconButton(
+                          icon: Icon(
+                            _messageController.text.trim().isNotEmpty ||
+                                    _replyingTo != null
+                                ? Icons.arrow_upward_rounded
+                                : Icons.mic_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            if (_messageController.text.trim().isNotEmpty ||
+                                _replyingTo != null) {
+                              _sendMessage();
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Hold to record voice note',
+                                    style: GoogleFonts.outfit(),
+                                  ),
+                                  backgroundColor: AppColors.obsidianBase,
+                                  duration: const Duration(seconds: 1),
+                                ),
+                              );
+                            }
+                          },
+                        ),
                       ),
                     ),
                     const SizedBox(width: 4),
