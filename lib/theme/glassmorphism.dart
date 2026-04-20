@@ -11,7 +11,7 @@ class Glassmorphism {
       border: Border.all(color: AppColors.glassBorder, width: 1.5),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.05),
+          color: Colors.black.withAlpha(13),
           blurRadius: 15,
           offset: const Offset(0, 5),
         ),
@@ -58,7 +58,7 @@ class GlassCard extends StatelessWidget {
               border: Border.all(color: AppColors.glassBorder, width: 1),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withAlpha(13),
                   blurRadius: 10,
                   spreadRadius: 0,
                   offset: const Offset(0, 4),
