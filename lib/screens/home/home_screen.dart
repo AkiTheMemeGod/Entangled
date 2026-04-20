@@ -73,6 +73,7 @@ class HomeScreen extends ConsumerWidget {
                           padding: const EdgeInsets.only(bottom: 12.0),
                           child: _buildChatTile(
                             context,
+                            ref,
                             chats[index],
                             currentUser?.uid,
                           ),
@@ -210,6 +211,7 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _buildChatTile(
     BuildContext context,
+    WidgetRef ref,
     ChatModel chat,
     String? currentUserId,
   ) {
@@ -243,112 +245,162 @@ class HomeScreen extends ConsumerWidget {
               width: 1,
             ),
           ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-            onTap: () {
-              Navigator.pushNamed(
-                context,
-                AppRoutes.chat,
-                arguments: {
-                  'chatId': chat.id,
-                  'otherUserId': otherUserId,
-                  'otherUserName': otherUserName,
-                  'otherUserPhoto': otherUserPhoto,
-                },
-              );
-            },
-            leading: Stack(
-              children: [
-                HolographicAvatar(
-                  uid: otherUserId,
-                  radius: 26,
-                  fallbackPhotoUrl: otherUserPhoto,
-                  fallbackName: otherUserName,
-                ),
-                if (isUnread)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondary,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? AppColors.obsidianBase
-                              : Colors.white,
-                          width: 2,
+          child: GestureDetector(
+            onLongPress: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: AppColors.obsidianBase,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: const BorderSide(color: AppColors.glassBorder),
+                  ),
+                  title: Text(
+                    'Delete Chat',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  content: Text(
+                    'Are you sure you want to delete this chat with $otherUserName?',
+                    style: GoogleFonts.outfit(color: Colors.white70),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.outfit(color: Colors.white54),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await ref
+                            .read(firestoreServiceProvider)
+                            .deleteChat(chat.id);
+                      },
+                      child: Text(
+                        'Delete',
+                        style: GoogleFonts.outfit(
+                          color: AppColors.electricRose,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            title: Text(
-              otherUserName,
-              style: GoogleFonts.outfit(
-                fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
-                fontSize: 17,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 4.0),
-              child: Text(
-                chat.lastMessage,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.outfit(
-                  fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal,
-                  color: isUnread
-                      ? Theme.of(context).colorScheme.onSurface
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 14,
+                  ],
                 ),
+              );
+            },
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
               ),
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  _formatTime(chat.lastMessageTime),
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
-                    color: isUnread
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(
-                            context,
-                          ).colorScheme.onSurfaceVariant.withAlpha(153),
+              onTap: () {
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.chat,
+                  arguments: {
+                    'chatId': chat.id,
+                    'otherUserId': otherUserId,
+                    'otherUserName': otherUserName,
+                    'otherUserPhoto': otherUserPhoto,
+                  },
+                );
+              },
+              leading: Stack(
+                children: [
+                  HolographicAvatar(
+                    uid: otherUserId,
+                    radius: 26,
+                    fallbackPhotoUrl: otherUserPhoto,
+                    fallbackName: otherUserName,
                   ),
-                ),
-                if (isUnread) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${chat.unreadCount[currentUserId]}',
-                      style: GoogleFonts.outfit(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                  if (isUnread)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.secondary,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.obsidianBase
+                                : Colors.white,
+                            width: 2,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
                 ],
-              ],
+              ),
+              title: Text(
+                otherUserName,
+                style: GoogleFonts.outfit(
+                  fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
+                  fontSize: 17,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text(
+                  chat.lastMessage,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.outfit(
+                    fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal,
+                    color: isUnread
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _formatTime(chat.lastMessageTime),
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      color: isUnread
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant.withAlpha(153),
+                    ),
+                  ),
+                  if (isUnread) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${chat.unreadCount[currentUserId]}',
+                        style: GoogleFonts.outfit(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
