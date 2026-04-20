@@ -11,11 +11,17 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       colorScheme: ColorScheme.light(
-        primary: palette.primary,
-        secondary: palette.secondary,
+        primary: palette.primaryLight,
+        secondary: palette.secondaryLight,
         surface: Colors.white,
         onSurface: AppColors.textMainLight,
         onSurfaceVariant: AppColors.textDimLight,
+        onPrimary: palette.primaryLight.computeLuminance() > 0.5
+            ? Colors.black
+            : Colors.white,
+        onSecondary: palette.secondaryLight.computeLuminance() > 0.5
+            ? Colors.black
+            : Colors.white,
       ),
       scaffoldBackgroundColor: palette.bgLight ?? AppColors.bgLight,
       textTheme: GoogleFonts.outfitTextTheme(base.textTheme).copyWith(
@@ -48,10 +54,16 @@ class AppTheme {
       brightness: Brightness.dark,
       scaffoldBackgroundColor: palette.bgDark ?? AppColors.obsidianBase,
       colorScheme: ColorScheme.dark(
-        primary: palette.primary,
-        secondary: palette.secondary,
+        primary: palette.primaryDark,
+        secondary: palette.secondaryDark,
         surface: const Color(0xFF161625),
         onSurface: AppColors.textMain,
+        onPrimary: palette.primaryDark.computeLuminance() > 0.5
+            ? Colors.black
+            : Colors.white,
+        onSecondary: palette.secondaryDark.computeLuminance() > 0.5
+            ? Colors.black
+            : Colors.white,
       ),
       textTheme: GoogleFonts.outfitTextTheme(base.textTheme).copyWith(
         headlineMedium: GoogleFonts.outfit(
@@ -85,7 +97,7 @@ class AppTheme {
           backgroundColor: palette.primary,
           foregroundColor: Colors.white,
           elevation: 8,
-          shadowColor: palette.primary.withOpacity(0.5),
+          shadowColor: palette.primary.withAlpha(128),
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
@@ -98,7 +110,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white.withOpacity(0.03),
+        fillColor: Colors.white.withAlpha(8),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: const BorderSide(color: AppColors.glassBorder),
