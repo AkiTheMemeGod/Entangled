@@ -34,7 +34,7 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: 'Toggle dark/light resonance',
               trailing: Switch(
                 value: settings.mode == ThemeMode.dark,
-                activeColor: Theme.of(context).colorScheme.primary,
+                activeThumbColor: Theme.of(context).colorScheme.primary,
                 onChanged: (val) {
                   ref.read(themeSettingsProvider.notifier).toggleTheme();
                 },
@@ -112,7 +112,7 @@ class SettingsScreen extends ConsumerWidget {
           child: Text(
             'COLOR RESONANCE',
             style: GoogleFonts.outfit(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(128),
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.5,
@@ -198,7 +198,7 @@ class SettingsScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: AppColors.isDarkMode(context)
             ? AppColors.glassHeavy
-            : Colors.white.withOpacity(0.5),
+            : Colors.white.withAlpha(128),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.glassBorder, width: 1),
       ),
@@ -208,7 +208,7 @@ class SettingsScreen extends ConsumerWidget {
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            color: Theme.of(context).colorScheme.primary.withAlpha(26),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(
@@ -238,7 +238,7 @@ class SettingsScreen extends ConsumerWidget {
               Icons.chevron_right_rounded,
               color: Theme.of(
                 context,
-              ).colorScheme.onSurfaceVariant.withOpacity(0.6),
+              ).colorScheme.onSurfaceVariant.withAlpha(153),
               size: 20,
             ),
       ),
