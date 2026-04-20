@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/routes.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/animated_gradient_bg.dart';
+import '../../widgets/holographic_avatar.dart';
 
 class UserSearchScreen extends ConsumerStatefulWidget {
   const UserSearchScreen({super.key});
@@ -26,18 +28,17 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
     }
 
     setState(() => _isLoading = true);
-    
-    // In a real app with Algolia, this would be full-text search. 
-    // Here we do a basic prefix search or exact match for simplicity.
     final firestore = ref.read(firestoreServiceProvider);
-    
-    // Search by email exact match
-    final querySnapshot = await firestore.searchUsersByEmail(query.trim().toLowerCase());
-    
+    final querySnapshot = await firestore.searchUsersByEmail(
+      query.trim().toLowerCase(),
+    );
+
     final currentUid = ref.read(currentUserProvider).value?.uid;
-    
+
     setState(() {
-      _searchResults = querySnapshot.where((user) => user.uid != currentUid).toList();
+      _searchResults = querySnapshot
+          .where((user) => user.uid != currentUid)
+          .toList();
       _isLoading = false;
     });
   }
@@ -47,10 +48,12 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
     if (currentUser == null) return;
 
     final firestore = ref.read(firestoreServiceProvider);
-    
-    // Create or get existing chat
-    String chatId = await firestore.createOrGetChat(currentUser.uid, otherUser, currentUser);
-    
+    String chatId = await firestore.createOrGetChat(
+      currentUser.uid,
+      otherUser,
+      currentUser,
+    );
+
     if (mounted) {
       Navigator.pushReplacementNamed(
         context,
@@ -69,115 +72,218 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
     final currentUser = ref.read(currentUserProvider).value;
     if (currentUser == null) return;
 
-    await ref.read(firestoreServiceProvider).sendFriendRequest(currentUser, otherUser);
-    
+    await ref
+        .read(firestoreServiceProvider)
+        .sendFriendRequest(currentUser, otherUser);
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Friend request sent!')),
+        SnackBar(
+          content: Text('Friend request sent!', style: GoogleFonts.outfit()),
+          backgroundColor: AppColors.success,
+        ),
       );
-      setState(() {}); // Refresh list to show 'Pending'
+      setState(() {});
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final currentUid = ref.watch(currentUserProvider).value?.uid;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('New Chat'),
+        title: Text(
+          'Add Friend',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
       ),
       body: AnimatedGradientBg(
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TextField(
-                controller: _searchController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Search user by exact email...',
-                  hintStyle: TextStyle(color: Colors.white.withAlpha(150)),
-                  prefixIcon: const Icon(Icons.search, color: Colors.white),
-                  filled: true,
-                  fillColor: Colors.white.withAlpha(30),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
-                  ),
+              padding: const EdgeInsets.all(20.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.isDarkMode(context) ? AppColors.glassHeavy : Colors.white.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.glassBorder, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
-                onSubmitted: _searchUsers,
+                child: TextField(
+                  controller: _searchController,
+                  style: GoogleFonts.outfit(color: Theme.of(context).colorScheme.onSurface),
+                  cursorColor: AppColors.radiantViolet,
+                  decoration: InputDecoration(
+                    hintText: 'Enter exact email address...',
+                    hintStyle: GoogleFonts.outfit(color: Theme.of(context).hintColor),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      color: AppColors.radiantViolet,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 15,
+                    ),
+                  ),
+                  onSubmitted: _searchUsers,
+                ),
               ),
             ),
             Expanded(
-              child: _isLoading 
-                  ? const Center(child: CircularProgressIndicator())
-                  : _searchResults.isEmpty 
-                      ? Center(
-                          child: Text(
-                            _searchController.text.isEmpty 
-                                ? 'Type an email and hit Enter to search' 
-                                : 'No users found',
-                            style: const TextStyle(color: Colors.white70),
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.radiantViolet,
+                      ),
+                    )
+                  : _searchResults.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.person_search_rounded,
+                            size: 80,
+                            color: AppColors.textDim.withOpacity(0.1),
                           ),
-                        )
-                      : ListView.builder(
-                          itemCount: _searchResults.length,
-                          itemBuilder: (context, index) {
-                            final user = _searchResults[index];
-                            return FutureBuilder<String>(
-                              future: ref.read(firestoreServiceProvider).getFriendshipStatus(
-                                currentUid ?? '', 
-                                user.uid,
+                          const SizedBox(height: 16),
+                          Text(
+                            _searchController.text.isEmpty
+                                ? 'Search for your friends by email'
+                                : 'No matching user found',
+                            style: GoogleFonts.outfit(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _searchResults.length,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemBuilder: (context, index) {
+                        final user = _searchResults[index];
+                        return FutureBuilder<String>(
+                          future: ref
+                              .read(firestoreServiceProvider)
+                              .getFriendshipStatus(currentUid ?? '', user.uid),
+                          builder: (context, snapshot) {
+                            final status = snapshot.data ?? 'none';
+
+                            String trailingText = '';
+                            IconData? trailingIcon;
+                            Color? color;
+                            VoidCallback? onTap;
+
+                            if (status == 'friends') {
+                              trailingText = 'Message';
+                              trailingIcon = Icons.chat_bubble_rounded;
+                              color = AppColors.radiantViolet;
+                              onTap = () => _startChat(user);
+                            } else if (status == 'pending_sent') {
+                              trailingText = 'Pending';
+                              trailingIcon = Icons.timer_rounded;
+                              color = AppColors.textMuted;
+                            } else if (status == 'pending_received') {
+                              trailingText = 'Requests';
+                              trailingIcon = Icons.person_add_rounded;
+                              color = AppColors.electricRose;
+                            } else {
+                              trailingText = 'Add';
+                              trailingIcon = Icons.add_rounded;
+                              color = AppColors.radiantViolet;
+                              onTap = () => _sendRequest(user);
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12.0),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: AppColors.isDarkMode(context) ? AppColors.glassHeavy : Colors.white.withOpacity(0.5),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: AppColors.glassBorder,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.all(12),
+                                  leading: HolographicAvatar(
+                                    uid: user.uid,
+                                    radius: 28,
+                                    fallbackPhotoUrl: user.photoUrl,
+                                    fallbackName: user.displayName,
+                                  ),
+                                  title: Text(
+                                    user.displayName,
+                                    style: GoogleFonts.outfit(
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    user.email,
+                                    style: GoogleFonts.outfit(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  trailing: GestureDetector(
+                                    onTap: onTap,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: (onTap != null)
+                                            ? color?.withOpacity(0.1)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: (onTap != null)
+                                              ? color!.withOpacity(0.3)
+                                              : AppColors.glassBorder,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            trailingIcon,
+                                            color: color,
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            trailingText,
+                                            style: GoogleFonts.outfit(
+                                              color: color,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                              builder: (context, snapshot) {
-                                final status = snapshot.data ?? 'none';
-                                
-                                String trailingText = '';
-                                IconData? trailingIcon;
-                                VoidCallback? onTap;
-
-                                if (status == 'friends') {
-                                  trailingText = 'Message';
-                                  trailingIcon = Icons.chat;
-                                  onTap = () => _startChat(user);
-                                } else if (status == 'pending_sent') {
-                                  trailingText = 'Request Sent';
-                                  trailingIcon = Icons.hourglass_empty;
-                                } else if (status == 'pending_received') {
-                                  trailingText = 'Check Requests';
-                                  trailingIcon = Icons.person_add;
-                                } else {
-                                  trailingText = 'Add Friend';
-                                  trailingIcon = Icons.add;
-                                  onTap = () => _sendRequest(user);
-                                }
-
-                                return ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: AppColors.primary,
-                                    backgroundImage: user.photoUrl != null 
-                                        ? NetworkImage(user.photoUrl!) 
-                                        : null,
-                                    child: user.photoUrl == null 
-                                        ? Text(user.displayName[0]) 
-                                        : null,
-                                  ),
-                                  title: Text(user.displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                  subtitle: Text(user.email, style: const TextStyle(color: Colors.white70)),
-                                  trailing: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(trailingIcon, color: Colors.white70, size: 20),
-                                      const SizedBox(height: 4),
-                                      Text(trailingText, style: const TextStyle(color: Colors.white70, fontSize: 10)),
-                                    ],
-                                  ),
-                                  onTap: onTap,
-                                );
-                              },
                             );
                           },
-                        ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
