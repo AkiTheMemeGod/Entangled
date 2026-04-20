@@ -7,7 +7,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../config/routes.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/messaging_service.dart';
-import '../../theme/app_colors.dart';
 import '../../widgets/animated_gradient_bg.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -90,10 +89,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
+                      gradient: LinearGradient(
                         colors: [
-                          AppColors.radiantViolet,
-                          AppColors.radiantIndigo,
+                          Theme.of(context).colorScheme.primary,
+                          Theme.of(context).colorScheme.secondary,
                         ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -101,7 +100,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.radiantViolet.withOpacity(0.4),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withAlpha(102),
                           blurRadius: 30,
                           spreadRadius: 2,
                         ),
@@ -126,7 +127,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                       fontSize: 40,
                       fontWeight: FontWeight.bold,
                       letterSpacing: -1,
-                      color: AppColors.textMain,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   )
                   .animate()
