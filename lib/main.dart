@@ -8,17 +8,16 @@ import 'services/messaging_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
-  // Setup FCM background handler
-  await MessagingService.setupBackgroundHandling();
 
-  runApp(
-    const ProviderScope(
-      child: EntangledApp(),
-    ),
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Setup FCM background handler
+  try {
+    await MessagingService.setupBackgroundHandling();
+  } catch (e) {
+    // Firebase Messaging may not be available on all platforms
+    print('MessagingService setup warning: $e');
+  }
+
+  runApp(const ProviderScope(child: EntangledApp()));
 }
