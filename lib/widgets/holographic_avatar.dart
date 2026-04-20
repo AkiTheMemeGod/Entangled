@@ -60,63 +60,71 @@ class HolographicAvatar extends ConsumerWidget {
       );
     }
 
-    final effectiveHeroTag = heroTag ?? 'avatar_$uid';
+    final effectiveHeroTag = heroTag == null
+        ? null
+        : (heroTag!.isEmpty ? 'avatar_$uid' : heroTag);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final avatarContent = Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: showGlow
+            ? Border.all(
+                color: theme.colorScheme.primary.withAlpha(77),
+                width: 1,
+              )
+            : null,
+        boxShadow: showGlow
+            ? [
+                BoxShadow(
+                  color: theme.colorScheme.primary.withAlpha(26),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+              ]
+            : null,
+      ),
+      child: CircleAvatar(
+        radius: radius,
+        backgroundColor: isDark ? AppColors.obsidianBase : Colors.white24,
+        backgroundImage: photoUrl != null
+            ? CachedNetworkImageProvider(photoUrl)
+            : null,
+        child: photoUrl == null
+            ? Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: GoogleFonts.outfit(
+                  color: isDark ? AppColors.textMain : AppColors.textMainLight,
+                  fontWeight: FontWeight.bold,
+                  fontSize: radius * 0.8,
+                ),
+              )
+            : null,
+      ),
+    );
+
+    final wrappedAvatar = effectiveHeroTag != null
+        ? Hero(tag: effectiveHeroTag, child: avatarContent)
+        : avatarContent;
 
     return GestureDetector(
-      onTap: onTap ??
+      onTap:
+          onTap ??
           (photoUrl != null
               ? () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FullScreenImageViewer(
-                        imageUrl: photoUrl,
-                        tag: effectiveHeroTag,
-                        name: name,
-                      ),
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FullScreenImageViewer(
+                      imageUrl: photoUrl,
+                      tag: effectiveHeroTag,
+                      name: name,
                     ),
-                  )
+                  ),
+                )
               : null),
-      child: Hero(
-        tag: effectiveHeroTag,
-        child: Container(
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: showGlow
-                ? Border.all(
-                    color: AppColors.radiantViolet.withOpacity(0.3),
-                    width: 1,
-                  )
-                : null,
-            boxShadow: showGlow
-                ? [
-                    BoxShadow(
-                      color: AppColors.radiantViolet.withOpacity(0.1),
-                      blurRadius: 10,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : null,
-          ),
-          child: CircleAvatar(
-            radius: radius,
-            backgroundColor: AppColors.obsidianBase,
-            backgroundImage: photoUrl != null
-                ? CachedNetworkImageProvider(photoUrl)
-                : null,
-            child: photoUrl == null
-                ? Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : '?',
-                    style: GoogleFonts.outfit(
-                      color: AppColors.textMain,
-                      fontWeight: FontWeight.bold,
-                      fontSize: radius * 0.8,
-                    ),
-                  )
-                : null,
-          ),
-        ),
-      ),
+      child: wrappedAvatar,
     );
   }
 
