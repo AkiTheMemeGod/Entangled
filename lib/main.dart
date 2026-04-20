@@ -16,7 +16,7 @@ void main() async {
     await MessagingService.setupBackgroundHandling();
   } catch (e) {
     // Firebase Messaging may not be available on all platforms
-    print('MessagingService setup warning: $e');
+    //print('MessagingService setup warning: $e');
   }
 
   runApp(const ProviderScope(child: EntangledApp()));
