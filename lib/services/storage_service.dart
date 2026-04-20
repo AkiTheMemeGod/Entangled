@@ -22,9 +22,14 @@ class StorageService {
     return uploadChatImage(chatId, imageFile);
   }
 
+  Future<String?> uploadChatAudio(String chatId, File audioFile) async {
+    return _uploadToCloudinary(audioFile, folder: 'chat_audio/$chatId', resourceType: 'video');
+  }
+
   Future<String?> _uploadToCloudinary(
-    File imageFile, {
+    File file, {
     required String folder,
+    String resourceType = 'image',
   }) async {
     if (_cloudName == 'YOUR_CLOUD_NAME') {
       debugPrint('CLOUD_STORAGE_ERROR: Cloudinary credentials not configured.');
@@ -33,13 +38,13 @@ class StorageService {
 
     try {
       final url = Uri.parse(
-        'https://api.cloudinary.com/v1_1/$_cloudName/image/upload',
+        'https://api.cloudinary.com/v1_1/$_cloudName/$resourceType/upload',
       );
 
       final request = http.MultipartRequest('POST', url)
         ..fields['upload_preset'] = _uploadPreset
         ..fields['folder'] = folder
-        ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+        ..files.add(await http.MultipartFile.fromPath('file', file.path));
 
       final response = await request.send();
       final responseData = await response.stream.toBytes();
