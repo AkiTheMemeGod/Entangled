@@ -21,7 +21,7 @@ class _AnimatedGradientBgState extends State<AnimatedGradientBg>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(seconds: 5),
+      duration: const Duration(seconds: 10), // Slower, more professional breathing
       vsync: this,
     )..repeat(reverse: true);
   }
@@ -30,15 +30,16 @@ class _AnimatedGradientBgState extends State<AnimatedGradientBg>
   void didChangeDependencies() {
     super.didChangeDependencies();
     bool isDark = AppColors.isDarkMode(context);
+    final theme = Theme.of(context);
 
     _color1 = ColorTween(
-      begin: isDark ? AppColors.bgDark : AppColors.bgLight,
-      end: isDark ? const Color(0xFF151530) : const Color(0xFFE8E8FF),
+      begin: isDark ? AppColors.obsidianBase : AppColors.bgLight,
+      end: isDark ? theme.colorScheme.primary.withOpacity(0.15) : const Color(0xFFE8E8FF),
     ).animate(_controller);
 
     _color2 = ColorTween(
-      begin: isDark ? const Color(0xFF1A1025) : const Color(0xFFE0F7FA),
-      end: isDark ? AppColors.bgDark : AppColors.bgLight,
+      begin: isDark ? theme.colorScheme.secondary.withOpacity(0.1) : const Color(0xFFE0F7FA),
+      end: isDark ? AppColors.obsidianBase : AppColors.bgLight,
     ).animate(_controller);
   }
 
@@ -59,11 +60,13 @@ class _AnimatedGradientBgState extends State<AnimatedGradientBg>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                _color1.value ?? AppColors.bgDark,
-                _color2.value ?? AppColors.bgDark,
+                _color1.value ?? (AppColors.isDarkMode(context) ? AppColors.obsidianBase : AppColors.bgLight),
+                _color2.value ?? (AppColors.isDarkMode(context) ? AppColors.obsidianBase : AppColors.bgLight),
               ],
             ),
           ),
+          width: double.infinity,
+          height: double.infinity,
           child: widget.child,
         );
       },
