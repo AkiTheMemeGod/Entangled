@@ -1,4 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/user_model.dart';
@@ -11,6 +13,10 @@ final authServiceProvider = Provider<AuthService>((ref) {
 });
 
 final authStateProvider = StreamProvider<User?>((ref) {
+  // Firebase Auth has threading issues on Windows desktop
+  if (kIsWeb || Platform.isWindows) {
+    return Stream.value(null);
+  }
   return ref.watch(authServiceProvider).authStateChanges;
 });
 
