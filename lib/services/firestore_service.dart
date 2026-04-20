@@ -280,7 +280,9 @@ class FirestoreService {
 
     // Update chat details
     await _firestore.collection('chats').doc(chatId).update({
-      'lastMessage': message.type == 'image' ? '📷 Image' : message.text ?? '',
+      'lastMessage': message.type == 'image'
+          ? '📷 Image'
+          : (message.type == 'audio' ? '🎵 Voice note' : message.text ?? ''),
       'lastMessageTime': FieldValue.serverTimestamp(),
       'lastMessageSenderId': currentUid,
       'unreadCount.$otherUid': FieldValue.increment(1),
@@ -329,6 +331,34 @@ class FirestoreService {
           ? FieldValue.arrayUnion([uid])
           : FieldValue.arrayRemove([uid]),
     });
+  }
+
+  // Blocking
+  Future<void> blockUser(String currentUid, String blockedUid) async {
+    final doc = _firestore.collection('users').doc(currentUid);
+    await doc.update({
+      'blockedUsers': FieldValue.arrayUnion([blockedUid]),
+    });
+  }
+
+  Future<void> unblockUser(String currentUid, String unblockedUid) async {
+    final doc = _firestore.collection('users').doc(currentUid);
+    await doc.update({
+      'blockedUsers': FieldValue.arrayRemove([unblockedUid]),
+    });
+  }
+
+  Future<List<String>> getBlockedUsers(String uid) async {
+    final doc = await _firestore.collection('users').doc(uid).get();
+    if (doc.exists) {
+      return List<String>.from(doc.get('blockedUsers') ?? []);
+    }
+    return [];
+  }
+
+  // Chat deletion
+  Future<void> deleteChat(String chatId) async {
+    await _firestore.collection('chats').doc(chatId).delete();
   }
 
   Future<void> updateUserInAllChats(
