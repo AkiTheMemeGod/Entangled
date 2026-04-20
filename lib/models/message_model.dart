@@ -6,7 +6,9 @@ class MessageModel {
   final String senderName;
   final String? text;
   final String? imageUrl;
-  final String type; // "text" or "image"
+  final String? audioUrl;
+  final int? audioDurationMs;
+  final String type; // "text", "image", or "audio"
   final Map<String, dynamic>? replyTo; // {id, text, sender}
   final String status; // "sent", "delivered", "read"
   final List<String> readBy;
@@ -20,6 +22,8 @@ class MessageModel {
     required this.senderName,
     this.text,
     this.imageUrl,
+    this.audioUrl,
+    this.audioDurationMs,
     required this.type,
     this.replyTo,
     required this.status,
@@ -36,6 +40,8 @@ class MessageModel {
       senderName: map['senderName'] ?? '',
       text: map['text'],
       imageUrl: map['imageUrl'],
+      audioUrl: map['audioUrl'],
+      audioDurationMs: map['audioDurationMs'],
       type: map['type'] ?? 'text',
       replyTo: map['replyTo'] != null ? Map<String, dynamic>.from(map['replyTo']) : null,
       status: map['status'] ?? 'sent',
@@ -52,6 +58,8 @@ class MessageModel {
       'senderName': senderName,
       if (text != null) 'text': text,
       if (imageUrl != null) 'imageUrl': imageUrl,
+      if (audioUrl != null) 'audioUrl': audioUrl,
+      if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
       'type': type,
       if (replyTo != null) 'replyTo': replyTo,
       'status': status,
