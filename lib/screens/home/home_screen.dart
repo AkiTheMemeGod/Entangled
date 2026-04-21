@@ -11,6 +11,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/friend_request_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/animated_gradient_bg.dart';
 import '../../widgets/holographic_avatar.dart';
@@ -120,6 +121,7 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _buildAppBar(BuildContext context, WidgetRef ref, UserModel? user) {
     final requestsAsync = ref.watch(incomingRequestsProvider);
+    final unreadNotifications = ref.watch(unreadNotificationsCountProvider);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
@@ -151,6 +153,40 @@ class HomeScreen extends ConsumerWidget {
           ),
           Row(
             children: [
+              Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.glassBase,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.glassBorder),
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.notifications_none_rounded,
+                        color: Theme.of(context).colorScheme.onSurface,
+                        size: 22,
+                      ),
+                      onPressed: () =>
+                          Navigator.pushNamed(context, AppRoutes.notifications),
+                    ),
+                  ),
+                  if (unreadNotifications > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 8),
               requestsAsync.when(
                 data: (requests) {
                   return Stack(
@@ -163,7 +199,7 @@ class HomeScreen extends ConsumerWidget {
                         ),
                         child: IconButton(
                           icon: Icon(
-                            Icons.notifications_none_rounded,
+                            Icons.person_add_alt_rounded,
                             color: Theme.of(context).colorScheme.onSurface,
                             size: 22,
                           ),

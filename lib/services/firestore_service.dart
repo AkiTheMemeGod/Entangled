@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../models/chat_model.dart';
 import '../models/friend_request_model.dart';
 import '../models/message_model.dart';
+import '../models/notification_model.dart';
 import '../models/user_model.dart';
 
 class FirestoreService {
@@ -145,6 +146,38 @@ class FirestoreService {
 
   Future<void> rejectFriendRequest(String requestId) async {
     await _supabase.from('friend_requests').delete().eq('id', requestId);
+  }
+
+  // Notifications
+  Stream<List<NotificationModel>> streamNotifications(String uid) {
+    return _supabase.from('notifications').stream(primaryKey: ['id']).map((
+      rows,
+    ) {
+      final items = rows
+          .map((row) => Map<String, dynamic>.from(row))
+          .where((map) => map['recipient_id'] == uid)
+          .map(
+            (map) => NotificationModel.fromMap(map, map['id'] as String? ?? ''),
+          )
+          .toList();
+      items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return items;
+    });
+  }
+
+  Future<void> markNotificationAsRead(String notificationId) async {
+    await _supabase
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('id', notificationId);
+  }
+
+  Future<void> markAllNotificationsAsRead(String uid) async {
+    await _supabase
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('recipient_id', uid)
+        .eq('is_read', false);
   }
 
   // Chats
