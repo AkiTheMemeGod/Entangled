@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class ChatModel {
   final String id;
   final List<String> participants;
@@ -32,14 +30,16 @@ class ChatModel {
       id: id,
       participants: List<String>.from(map['participants'] ?? []),
       participantNames: Map<String, String>.from(map['participantNames'] ?? {}),
-      participantPhotos: Map<String, String>.from(map['participantPhotos'] ?? {}),
+      participantPhotos: Map<String, String>.from(
+        map['participantPhotos'] ?? {},
+      ),
       lastMessage: map['lastMessage'] ?? '',
-      lastMessageTime: (map['lastMessageTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastMessageTime: _parseDateTime(map['lastMessageTime']),
       lastMessageSenderId: map['lastMessageSenderId'] ?? '',
       type: map['type'] ?? 'individual',
       unreadCount: Map<String, int>.from(map['unreadCount'] ?? {}),
       typingUsers: List<String>.from(map['typingUsers'] ?? []),
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: _parseDateTime(map['createdAt']),
     );
   }
 
@@ -49,12 +49,25 @@ class ChatModel {
       'participantNames': participantNames,
       'participantPhotos': participantPhotos,
       'lastMessage': lastMessage,
-      'lastMessageTime': Timestamp.fromDate(lastMessageTime),
+      'lastMessageTime': lastMessageTime.toUtc().toIso8601String(),
       'lastMessageSenderId': lastMessageSenderId,
       'type': type,
       'unreadCount': unreadCount,
       'typingUsers': typingUsers,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt.toUtc().toIso8601String(),
     };
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String)
+      return DateTime.tryParse(value)?.toLocal() ?? DateTime.now();
+    if (value is num) {
+      return DateTime.fromMillisecondsSinceEpoch(
+        value.toInt(),
+        isUtc: true,
+      ).toLocal();
+    }
+    return DateTime.now();
   }
 }

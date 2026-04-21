@@ -7,15 +7,18 @@ import 'auth_provider.dart';
 final userChatsProvider = StreamProvider<List<ChatModel>>((ref) {
   final user = ref.watch(authStateProvider).value;
   if (user != null) {
-    return ref.watch(firestoreServiceProvider).streamUserChats(user.uid);
+    return ref.watch(firestoreServiceProvider).streamUserChats(user.id);
   }
   return Stream.value([]);
 });
 
-final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((ref, chatId) {
+final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
+  ref,
+  chatId,
+) {
   final user = ref.watch(authStateProvider).value;
   if (user != null) {
-    return ref.watch(firestoreServiceProvider).streamMessages(chatId, user.uid);
+    return ref.watch(firestoreServiceProvider).streamMessages(chatId, user.id);
   }
   return Stream.value([]);
 });

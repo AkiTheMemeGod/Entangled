@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class FriendRequestModel {
   final String id;
   final String fromId;
@@ -30,7 +28,7 @@ class FriendRequestModel {
       fromPhoto: map['fromPhoto'],
       toId: map['toId'] ?? '',
       status: map['status'] ?? 'pending',
-      timestamp: (map['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      timestamp: _parseDateTime(map['timestamp']),
     );
   }
 
@@ -42,7 +40,20 @@ class FriendRequestModel {
       if (fromPhoto != null) 'fromPhoto': fromPhoto,
       'toId': toId,
       'status': status,
-      'timestamp': Timestamp.fromDate(timestamp),
+      'timestamp': timestamp.toUtc().toIso8601String(),
     };
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String)
+      return DateTime.tryParse(value)?.toLocal() ?? DateTime.now();
+    if (value is num) {
+      return DateTime.fromMillisecondsSinceEpoch(
+        value.toInt(),
+        isUtc: true,
+      ).toLocal();
+    }
+    return DateTime.now();
   }
 }

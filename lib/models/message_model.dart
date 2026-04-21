@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class MessageModel {
   final String id;
   final String senderId;
@@ -43,12 +41,14 @@ class MessageModel {
       audioUrl: map['audioUrl'],
       audioDurationMs: map['audioDurationMs'],
       type: map['type'] ?? 'text',
-      replyTo: map['replyTo'] != null ? Map<String, dynamic>.from(map['replyTo']) : null,
+      replyTo: map['replyTo'] != null
+          ? Map<String, dynamic>.from(map['replyTo'])
+          : null,
       status: map['status'] ?? 'sent',
       readBy: List<String>.from(map['readBy'] ?? []),
       deletedBy: List<String>.from(map['deletedBy'] ?? []),
       isDeleted: map['isDeleted'] ?? false,
-      timestamp: (map['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      timestamp: _parseDateTime(map['timestamp']),
     );
   }
 
@@ -66,7 +66,20 @@ class MessageModel {
       'readBy': readBy,
       'deletedBy': deletedBy,
       'isDeleted': isDeleted,
-      'timestamp': Timestamp.fromDate(timestamp), // use FieldValue.serverTimestamp() when sending
+      'timestamp': timestamp.toUtc().toIso8601String(),
     };
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String)
+      return DateTime.tryParse(value)?.toLocal() ?? DateTime.now();
+    if (value is num) {
+      return DateTime.fromMillisecondsSinceEpoch(
+        value.toInt(),
+        isUtc: true,
+      ).toLocal();
+    }
+    return DateTime.now();
   }
 }

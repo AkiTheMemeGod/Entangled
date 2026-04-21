@@ -1,21 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
-import 'config/firebase_options.dart';
+import 'config/supabase_config.dart';
 import 'services/messaging_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  if (!SupabaseConfig.isConfigured) {
+    throw StateError(
+      'Supabase is not configured. Provide SUPABASE_URL and SUPABASE_ANON_KEY via --dart-define.',
+    );
+  }
 
-  // Setup FCM background handler
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
+  );
+
+  // Setup push-service background handler if available on this platform.
   try {
     await MessagingService.setupBackgroundHandling();
   } catch (e) {
-    // Firebase Messaging may not be available on all platforms
     //print('MessagingService setup warning: $e');
   }
 

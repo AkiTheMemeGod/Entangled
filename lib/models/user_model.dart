@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class UserModel {
   final String uid;
   final String email;
@@ -27,10 +25,10 @@ class UserModel {
       email: map['email'] ?? '',
       displayName: map['displayName'] ?? '',
       photoUrl: map['photoUrl'],
-      lastSeen: (map['lastSeen'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastSeen: _parseDateTime(map['lastSeen']),
       isOnline: map['isOnline'] ?? false,
       fcmToken: map['fcmToken'],
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: _parseDateTime(map['createdAt']),
     );
   }
 
@@ -39,11 +37,24 @@ class UserModel {
       'email': email,
       'displayName': displayName,
       if (photoUrl != null) 'photoUrl': photoUrl,
-      'lastSeen': Timestamp.fromDate(lastSeen),
+      'lastSeen': lastSeen.toUtc().toIso8601String(),
       'isOnline': isOnline,
       if (fcmToken != null) 'fcmToken': fcmToken,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt.toUtc().toIso8601String(),
     };
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String)
+      return DateTime.tryParse(value)?.toLocal() ?? DateTime.now();
+    if (value is num) {
+      return DateTime.fromMillisecondsSinceEpoch(
+        value.toInt(),
+        isUtc: true,
+      ).toLocal();
+    }
+    return DateTime.now();
   }
 
   UserModel copyWith({

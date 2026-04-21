@@ -1,47 +1,46 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
+
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io' show Platform;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/user_model.dart';
 import 'firestore_service.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoTrueClient _auth = Supabase.instance.client.auth;
   final FirestoreService _firestoreService = FirestoreService();
 
   Stream<User?> get authStateChanges {
-    // Firebase Auth has threading issues on Windows
-    if (kIsWeb || Platform.isWindows) {
-      return Stream.value(null);
+    final stream = _auth.onAuthStateChange.map((data) => data.session?.user);
+    final current = _auth.currentUser;
+    if (current != null) {
+      return Stream<User?>.multi((controller) {
+        controller.add(current);
+        final sub = stream.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: controller.close,
+        );
+        controller.onCancel = sub.cancel;
+      });
     }
-    return _auth.authStateChanges();
+    return stream;
   }
 
-  User? get currentUser {
-    if (kIsWeb || Platform.isWindows) {
-      return null;
-    }
-    return _auth.currentUser;
-  }
+  User? get currentUser => _auth.currentUser;
 
   Future<UserModel?> signInWithEmail(String email, String password) async {
-    if (kIsWeb || Platform.isWindows) {
-      throw UnsupportedError('Authentication not supported on this platform');
-    }
     try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      final response = await _auth.signInWithPassword(
         email: email,
         password: password,
       );
+      final user = response.user;
 
-      if (userCredential.user != null) {
+      if (user != null) {
         // Update last seen
-        await _firestoreService.updateUserPresence(
-          userCredential.user!.uid,
-          true,
-        );
-        return await _firestoreService.getUser(userCredential.user!.uid);
+        await _firestoreService.updateUserPresence(user.id, true);
+        return await _firestoreService.getUser(user.id);
       }
       return null;
     } catch (e) {
@@ -54,17 +53,17 @@ class AuthService {
     String password,
     String displayName,
   ) async {
-    if (kIsWeb || Platform.isWindows) {
-      throw UnsupportedError('Authentication not supported on this platform');
-    }
     try {
-      UserCredential userCredential = await _auth
-          .createUserWithEmailAndPassword(email: email, password: password);
+      final response = await _auth.signUp(
+        email: email,
+        password: password,
+        data: {'displayName': displayName},
+      );
 
-      User? user = userCredential.user;
+      final user = response.user;
       if (user != null) {
         UserModel newUser = UserModel(
-          uid: user.uid,
+          uid: user.id,
           email: user.email ?? '',
           displayName: displayName,
           lastSeen: DateTime.now(),
@@ -82,9 +81,6 @@ class AuthService {
   }
 
   Future<UserModel?> signInWithGoogle() async {
-    if (kIsWeb || Platform.isWindows) {
-      throw UnsupportedError('Google Sign In not supported on this platform');
-    }
     try {
       await GoogleSignIn.instance.initialize();
       final GoogleSignInAccount googleUser = await GoogleSignIn.instance
@@ -93,32 +89,33 @@ class AuthService {
       final authz = await googleUser.authorizationClient.authorizationForScopes(
         ['email', 'profile'],
       );
-      final AuthCredential credential = GoogleAuthProvider.credential(
+      await _auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: googleAuth.idToken ?? '',
         accessToken: authz?.accessToken,
-        idToken: googleAuth.idToken,
       );
 
-      UserCredential userCredential = await _auth.signInWithCredential(
-        credential,
-      );
-      User? user = userCredential.user;
+      final user = _auth.currentUser;
 
       if (user != null) {
-        UserModel? existingUser = await _firestoreService.getUser(user.uid);
+        UserModel? existingUser = await _firestoreService.getUser(user.id);
 
         if (existingUser == null) {
           existingUser = UserModel(
-            uid: user.uid,
+            uid: user.id,
             email: user.email ?? '',
-            displayName: user.displayName ?? 'User',
-            photoUrl: user.photoURL,
+            displayName:
+                user.userMetadata?['full_name'] as String? ??
+                user.email?.split('@').first ??
+                'User',
+            photoUrl: user.userMetadata?['avatar_url'] as String?,
             lastSeen: DateTime.now(),
             isOnline: true,
             createdAt: DateTime.now(),
           );
           await _firestoreService.createUser(existingUser);
         } else {
-          await _firestoreService.updateUserPresence(user.uid, true);
+          await _firestoreService.updateUserPresence(user.id, true);
         }
 
         return existingUser;
@@ -130,13 +127,10 @@ class AuthService {
   }
 
   Future<void> signOut() async {
-    if (kIsWeb || Platform.isWindows) {
-      return;
-    }
     try {
-      User? user = _auth.currentUser;
+      final user = _auth.currentUser;
       if (user != null) {
-        await _firestoreService.updateUserPresence(user.uid, false);
+        await _firestoreService.updateUserPresence(user.id, false);
       }
       await GoogleSignIn.instance.signOut();
       await _auth.signOut();

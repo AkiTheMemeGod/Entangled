@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../config/routes.dart';
 import '../../providers/auth_provider.dart';
@@ -56,7 +56,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       try {
         final messagingService = MessagingService();
         await messagingService
-            .init(user.uid)
+            .init(user.id)
             .timeout(const Duration(seconds: 5));
       } catch (e) {
         debugPrint('FCM Init failed: $e');

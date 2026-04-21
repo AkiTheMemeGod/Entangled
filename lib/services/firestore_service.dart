@@ -1,70 +1,71 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/user_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
+
 import '../models/chat_model.dart';
-import '../models/message_model.dart';
 import '../models/friend_request_model.dart';
+import '../models/message_model.dart';
+import '../models/user_model.dart';
 
 class FirestoreService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   // Users
   Future<void> createUser(UserModel user) async {
-    await _firestore.collection('users').doc(user.uid).set(user.toMap());
+    await _supabase.from('users').upsert({'id': user.uid, ...user.toMap()});
   }
 
   Future<UserModel?> getUser(String uid) async {
-    DocumentSnapshot doc = await _firestore.collection('users').doc(uid).get();
-    if (doc.exists) {
-      return UserModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-    }
-    return null;
+    final rows = await _supabase.from('users').select().eq('id', uid).limit(1);
+    if (rows.isEmpty) return null;
+
+    final data = Map<String, dynamic>.from(rows.first as Map);
+    return UserModel.fromMap(data, data['id'] as String? ?? uid);
   }
 
   Future<void> updateUserPresence(String uid, bool isOnline) async {
-    await _firestore.collection('users').doc(uid).update({
-      'isOnline': isOnline,
-      'lastSeen': FieldValue.serverTimestamp(),
-    });
+    await _supabase
+        .from('users')
+        .update({
+          'isOnline': isOnline,
+          'lastSeen': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', uid);
   }
 
   Future<void> updateFCMToken(String uid, String token) async {
-    await _firestore.collection('users').doc(uid).update({'fcmToken': token});
+    await _supabase.from('users').update({'fcmToken': token}).eq('id', uid);
   }
 
   Future<void> updateUserPhotoUrl(String uid, String photoUrl) async {
-    await _firestore.collection('users').doc(uid).update({
-      'photoUrl': photoUrl,
-    });
+    await _supabase.from('users').update({'photoUrl': photoUrl}).eq('id', uid);
   }
 
   Future<List<UserModel>> searchUsersByEmail(String email) async {
-    QuerySnapshot result = await _firestore
-        .collection('users')
-        .where('email', isEqualTo: email)
-        .get();
+    final rows = await _supabase
+        .from('users')
+        .select()
+        .eq('email', email)
+        .limit(20);
 
-    return result.docs
-        .map(
-          (doc) =>
-              UserModel.fromMap(doc.data() as Map<String, dynamic>, doc.id),
-        )
+    return rows
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .map((map) => UserModel.fromMap(map, map['id'] as String? ?? ''))
         .toList();
   }
 
   Stream<UserModel?> streamUser(String uid) {
-    return _firestore.collection('users').doc(uid).snapshots().map((doc) {
-      if (doc.exists) {
-        return UserModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-      }
-      return null;
+    return _supabase.from('users').stream(primaryKey: ['id']).map((rows) {
+      final filtered = rows.where((row) => row['id'] == uid).toList();
+      if (filtered.isEmpty) return null;
+
+      final data = Map<String, dynamic>.from(filtered.first);
+      return UserModel.fromMap(data, data['id'] as String? ?? uid);
     });
   }
 
   // Friend Requests
   Future<void> sendFriendRequest(UserModel from, UserModel to) async {
     final requestId = '${from.uid}_${to.uid}';
-    final doc = _firestore.collection('friend_requests').doc(requestId);
-
     final request = FriendRequestModel(
       id: requestId,
       fromId: from.uid,
@@ -76,38 +77,51 @@ class FirestoreService {
       timestamp: DateTime.now(),
     );
 
-    await doc.set(request.toMap());
+    await _supabase.from('friend_requests').upsert({
+      'id': requestId,
+      ...request.toMap(),
+    });
   }
 
   Stream<List<FriendRequestModel>> streamIncomingRequests(String uid) {
-    return _firestore
-        .collection('friend_requests')
-        .where('toId', isEqualTo: uid)
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => FriendRequestModel.fromMap(doc.data(), doc.id))
-              .toList(),
-        );
+    return _supabase.from('friend_requests').stream(primaryKey: ['id']).map((
+      rows,
+    ) {
+      final requests = rows
+          .map((row) => Map<String, dynamic>.from(row))
+          .where(
+            (map) =>
+                map['toId'] == uid && (map['status'] as String?) == 'pending',
+          )
+          .map(
+            (map) =>
+                FriendRequestModel.fromMap(map, map['id'] as String? ?? ''),
+          )
+          .toList();
+      requests.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return requests;
+    });
   }
 
   Future<String> getFriendshipStatus(String myUid, String otherUid) async {
-    // Check if friends
-    final outReq = await _firestore
-        .collection('friend_requests')
-        .doc('${myUid}_$otherUid')
-        .get();
-    if (outReq.exists) {
-      return outReq.get('status') == 'accepted' ? 'friends' : 'pending_sent';
+    final outReq = await _supabase
+        .from('friend_requests')
+        .select('status')
+        .eq('id', '${myUid}_$otherUid')
+        .limit(1);
+    if (outReq.isNotEmpty) {
+      final status = (outReq.first as Map)['status'] as String? ?? 'pending';
+      return status == 'accepted' ? 'friends' : 'pending_sent';
     }
 
-    final inReq = await _firestore
-        .collection('friend_requests')
-        .doc('${otherUid}_$myUid')
-        .get();
-    if (inReq.exists) {
-      return inReq.get('status') == 'accepted' ? 'friends' : 'pending_received';
+    final inReq = await _supabase
+        .from('friend_requests')
+        .select('status')
+        .eq('id', '${otherUid}_$myUid')
+        .limit(1);
+    if (inReq.isNotEmpty) {
+      final status = (inReq.first as Map)['status'] as String? ?? 'pending';
+      return status == 'accepted' ? 'friends' : 'pending_received';
     }
 
     return 'none';
@@ -117,12 +131,11 @@ class FirestoreService {
     FriendRequestModel request,
     UserModel currentUser,
   ) async {
-    // 1. Update request status
-    await _firestore.collection('friend_requests').doc(request.id).update({
-      'status': 'accepted',
-    });
+    await _supabase
+        .from('friend_requests')
+        .update({'status': 'accepted'})
+        .eq('id', request.id);
 
-    // 2. Create the chat automatically
     final otherUser = await getUser(request.fromId);
     if (otherUser != null) {
       await createOrGetChat(currentUser.uid, otherUser, currentUser);
@@ -130,31 +143,34 @@ class FirestoreService {
   }
 
   Future<void> rejectFriendRequest(String requestId) async {
-    await _firestore.collection('friend_requests').doc(requestId).delete();
+    await _supabase.from('friend_requests').delete().eq('id', requestId);
   }
 
   // Chats
   Stream<List<ChatModel>> streamUserChats(String uid) {
-    return _firestore
-        .collection('chats')
-        .where('participants', arrayContains: uid)
-        .snapshots()
-        .map((snapshot) {
-          final chats = snapshot.docs
-              .map((doc) => ChatModel.fromMap(doc.data(), doc.id))
-              .toList();
-          // Sort client-side to avoid needing a Firestore composite index
-          chats.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
-          return chats;
-        });
+    return _supabase.from('chats').stream(primaryKey: ['id']).map((rows) {
+      final chats = rows
+          .map((row) => Map<String, dynamic>.from(row))
+          .where((map) {
+            final participants = List<String>.from(
+              map['participants'] ?? const <String>[],
+            );
+            return participants.contains(uid);
+          })
+          .map((map) => ChatModel.fromMap(map, map['id'] as String? ?? ''))
+          .toList();
+      chats.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      return chats;
+    });
   }
 
   Stream<ChatModel?> streamChat(String chatId) {
-    return _firestore.collection('chats').doc(chatId).snapshots().map((doc) {
-      if (doc.exists) {
-        return ChatModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-      }
-      return null;
+    return _supabase.from('chats').stream(primaryKey: ['id']).map((rows) {
+      final filtered = rows.where((row) => row['id'] == chatId).toList();
+      if (filtered.isEmpty) return null;
+
+      final map = Map<String, dynamic>.from(filtered.first);
+      return ChatModel.fromMap(map, map['id'] as String? ?? chatId);
     });
   }
 
@@ -163,24 +179,23 @@ class FirestoreService {
     UserModel otherUser,
     UserModel currentUser,
   ) async {
-    QuerySnapshot existingChats = await _firestore
-        .collection('chats')
-        .where('participants', arrayContains: currentUid)
-        .get();
+    final existingChats = await _supabase
+        .from('chats')
+        .select()
+        .contains('participants', [currentUid])
+        .eq('type', 'individual');
 
-    for (var doc in existingChats.docs) {
-      List participants = doc['participants'];
-      if (participants.contains(otherUser.uid) &&
-          participants.length == 2 &&
-          doc['type'] == 'individual') {
-        return doc.id;
+    for (final row in existingChats) {
+      final doc = Map<String, dynamic>.from(row as Map);
+      final participants = List<String>.from(doc['participants'] ?? const []);
+      if (participants.contains(otherUser.uid) && participants.length == 2) {
+        return doc['id'] as String;
       }
     }
 
-    // Create new chat
-    DocumentReference newChat = _firestore.collection('chats').doc();
-    ChatModel chat = ChatModel(
-      id: newChat.id,
+    final chatId = const Uuid().v4();
+    final chat = ChatModel(
+      id: chatId,
       participants: [currentUid, otherUser.uid],
       participantNames: {
         currentUid: currentUser.displayName,
@@ -195,29 +210,26 @@ class FirestoreService {
       lastMessageSenderId: '',
       type: 'individual',
       unreadCount: {currentUid: 0, otherUser.uid: 0},
-      typingUsers: [],
+      typingUsers: const [],
       createdAt: DateTime.now(),
     );
 
-    await newChat.set(chat.toMap());
-    return newChat.id;
+    await _supabase.from('chats').insert({'id': chatId, ...chat.toMap()});
+    return chatId;
   }
 
   // Messages
   Stream<List<MessageModel>> streamMessages(String chatId, String currentUid) {
-    return _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .orderBy('timestamp', descending: true)
-        .limit(50)
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => MessageModel.fromMap(doc.data(), doc.id))
-              .where((msg) => !msg.deletedBy.contains(currentUid))
-              .toList(),
-        );
+    return _supabase.from('messages').stream(primaryKey: ['id']).map((rows) {
+      final messages = rows
+          .map((row) => Map<String, dynamic>.from(row))
+          .where((map) => map['chatId'] == chatId)
+          .map((map) => MessageModel.fromMap(map, map['id'] as String? ?? ''))
+          .where((msg) => !msg.deletedBy.contains(currentUid))
+          .toList();
+      messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return messages.take(50).toList();
+    });
   }
 
   Future<void> deleteMessageForMe(
@@ -225,43 +237,44 @@ class FirestoreService {
     String messageId,
     String userId,
   ) async {
-    await _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .doc(messageId)
-        .update({
-          'deletedBy': FieldValue.arrayUnion([userId]),
-        });
+    final rows = await _supabase
+        .from('messages')
+        .select('deletedBy')
+        .eq('id', messageId)
+        .eq('chatId', chatId)
+        .limit(1);
+    if (rows.isEmpty) return;
+
+    final existing = List<String>.from(
+      (rows.first as Map)['deletedBy'] ?? const <String>[],
+    );
+    if (!existing.contains(userId)) {
+      existing.add(userId);
+    }
+    await _supabase
+        .from('messages')
+        .update({'deletedBy': existing})
+        .eq('id', messageId)
+        .eq('chatId', chatId);
   }
 
   Future<void> deleteMessageForAll(String chatId, String messageId) async {
-    final batch = _firestore.batch();
-    final msgDoc = _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .doc(messageId);
+    await _supabase
+        .from('messages')
+        .update({
+          'text': null,
+          'imageUrl': null,
+          'audioUrl': null,
+          'isDeleted': true,
+          'type': 'text',
+        })
+        .eq('id', messageId)
+        .eq('chatId', chatId);
 
-    batch.update(msgDoc, {
-      'text': null,
-      'imageUrl': null,
-      'isDeleted': true,
-      'type': 'text', // Reset type to text for the placeholder
-    });
-
-    // Check if it's the last message in the chat to update the preview
-    final chatDoc = await _firestore.collection('chats').doc(chatId).get();
-    if (chatDoc.exists) {
-      // This is a bit simplified, but typical. If we wanted to be 100% sure,
-      // we'd check if this messageId matches the hidden last message ID if we tracked it.
-      // For now, we'll just update the text preview always if we're deleting for all.
-      batch.update(chatDoc.reference, {
-        'lastMessage': '🚫 This message was deleted',
-      });
-    }
-
-    await batch.commit();
+    await _supabase
+        .from('chats')
+        .update({'lastMessage': 'This message was deleted'})
+        .eq('id', chatId);
   }
 
   Future<void> sendMessage(
@@ -270,21 +283,40 @@ class FirestoreService {
     String currentUid,
     String otherUid,
   ) async {
-    DocumentReference msgDoc = _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .doc();
-
-    await msgDoc.set(message.toMap());
-
-    // Update chat details
-    await _firestore.collection('chats').doc(chatId).update({
-      'lastMessage': message.type == 'image' ? '📷 Image' : message.text ?? '',
-      'lastMessageTime': FieldValue.serverTimestamp(),
-      'lastMessageSenderId': currentUid,
-      'unreadCount.$otherUid': FieldValue.increment(1),
+    await _supabase.from('messages').insert({
+      'id': message.id,
+      'chatId': chatId,
+      ...message.toMap(),
     });
+
+    final chatRows = await _supabase
+        .from('chats')
+        .select('unreadCount')
+        .eq('id', chatId)
+        .limit(1);
+
+    final unread = <String, int>{};
+    if (chatRows.isNotEmpty) {
+      final unreadRaw = (chatRows.first as Map)['unreadCount'];
+      if (unreadRaw is Map) {
+        unread.addAll(
+          unreadRaw.map(
+            (key, value) => MapEntry('$key', (value as num).toInt()),
+          ),
+        );
+      }
+    }
+    unread[otherUid] = (unread[otherUid] ?? 0) + 1;
+
+    await _supabase
+        .from('chats')
+        .update({
+          'lastMessage': message.type == 'image' ? 'Image' : message.text ?? '',
+          'lastMessageTime': DateTime.now().toUtc().toIso8601String(),
+          'lastMessageSenderId': currentUid,
+          'unreadCount': unread,
+        })
+        .eq('id', chatId);
   }
 
   Future<void> markMessagesAsRead(
@@ -292,43 +324,77 @@ class FirestoreService {
     String uid,
     String otherUid,
   ) async {
-    // Reset unread count on the chat document
-    await _firestore.collection('chats').doc(chatId).update({
-      'unreadCount.$uid': 0,
-    });
+    final chatRows = await _supabase
+        .from('chats')
+        .select('unreadCount')
+        .eq('id', chatId)
+        .limit(1);
 
-    // Get all messages from the other user, then filter client-side
-    // to avoid needing a Firestore composite index
-    final otherUserMessages = await _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .where('senderId', isEqualTo: otherUid)
-        .get();
-
-    final unread = otherUserMessages.docs.where((doc) {
-      final data = doc.data();
-      return data['status'] != 'read';
-    }).toList();
-
-    if (unread.isEmpty) return;
-
-    final batch = _firestore.batch();
-    for (var doc in unread) {
-      batch.update(doc.reference, {
-        'status': 'read',
-        'readBy': FieldValue.arrayUnion([uid]),
-      });
+    final unread = <String, int>{};
+    if (chatRows.isNotEmpty) {
+      final unreadRaw = (chatRows.first as Map)['unreadCount'];
+      if (unreadRaw is Map) {
+        unread.addAll(
+          unreadRaw.map(
+            (key, value) => MapEntry('$key', (value as num).toInt()),
+          ),
+        );
+      }
     }
-    await batch.commit();
+    unread[uid] = 0;
+
+    await _supabase
+        .from('chats')
+        .update({'unreadCount': unread})
+        .eq('id', chatId);
+
+    final unreadMessages = await _supabase
+        .from('messages')
+        .select('id, readBy, status')
+        .eq('chatId', chatId)
+        .eq('senderId', otherUid)
+        .neq('status', 'read');
+
+    for (final row in unreadMessages) {
+      final msg = Map<String, dynamic>.from(row as Map);
+      final readBy = List<String>.from(msg['readBy'] ?? const <String>[]);
+      if (!readBy.contains(uid)) {
+        readBy.add(uid);
+      }
+      await _supabase
+          .from('messages')
+          .update({'status': 'read', 'readBy': readBy})
+          .eq('id', msg['id'] as String);
+    }
   }
 
   Future<void> setTypingStatus(String chatId, String uid, bool isTyping) async {
-    await _firestore.collection('chats').doc(chatId).update({
-      'typingUsers': isTyping
-          ? FieldValue.arrayUnion([uid])
-          : FieldValue.arrayRemove([uid]),
-    });
+    final rows = await _supabase
+        .from('chats')
+        .select('typingUsers')
+        .eq('id', chatId)
+        .limit(1);
+    final current = <String>[];
+    if (rows.isNotEmpty) {
+      current.addAll(
+        List<String>.from(
+          (rows.first as Map)['typingUsers'] ?? const <String>[],
+        ),
+      );
+    }
+
+    if (isTyping) {
+      if (!current.contains(uid)) {
+        current.add(uid);
+      }
+    } else {
+      current.remove(uid);
+    }
+
+    await _supabase
+        .from('chats')
+        .update({'typingUsers': current})
+        .eq('id', chatId);
   }
 
   Future<void> updateUserInAllChats(
@@ -336,32 +402,34 @@ class FirestoreService {
     String? photoUrl,
     String? displayName,
   }) async {
-    // 1. Find all chats where user is a participant
-    QuerySnapshot chats = await _firestore
-        .collection('chats')
-        .where('participants', arrayContains: uid)
-        .get();
+    final chats = await _supabase
+        .from('chats')
+        .select('id, participantNames, participantPhotos')
+        .contains('participants', [uid]);
 
-    if (chats.docs.isEmpty) return;
+    for (final row in chats) {
+      final doc = Map<String, dynamic>.from(row as Map);
+      final participantNames = Map<String, dynamic>.from(
+        doc['participantNames'] ?? const <String, dynamic>{},
+      );
+      final participantPhotos = Map<String, dynamic>.from(
+        doc['participantPhotos'] ?? const <String, dynamic>{},
+      );
 
-    // 2. Prepare updates using a batch
-    WriteBatch batch = _firestore.batch();
-
-    for (var doc in chats.docs) {
-      Map<String, dynamic> updates = {};
-      if (photoUrl != null) {
-        updates['participantPhotos.$uid'] = photoUrl;
-      }
       if (displayName != null) {
-        updates['participantNames.$uid'] = displayName;
+        participantNames[uid] = displayName;
+      }
+      if (photoUrl != null) {
+        participantPhotos[uid] = photoUrl;
       }
 
-      if (updates.isNotEmpty) {
-        batch.update(doc.reference, updates);
-      }
+      await _supabase
+          .from('chats')
+          .update({
+            'participantNames': participantNames,
+            'participantPhotos': participantPhotos,
+          })
+          .eq('id', doc['id'] as String);
     }
-
-    // 3. Commit the batch
-    await batch.commit();
   }
 }
