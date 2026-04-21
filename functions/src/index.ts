@@ -99,3 +99,25 @@ export const onNewMessage = functions.firestore
 
     return Promise.all(sendPromises);
   });
+
+/**
+ * Create a Firestore profile document whenever a user signs up in Firebase Auth.
+ * This keeps /users in sync even if the client write is delayed or denied.
+ */
+export const onAuthUserCreate = functions.auth.user().onCreate(async (user) => {
+  const now = admin.firestore.Timestamp.fromDate(new Date());
+  const displayName = user.displayName ?? user.email?.split("@")[0] ?? "User";
+
+  await db.collection("users").doc(user.uid).set(
+    {
+      uid: user.uid,
+      email: (user.email ?? "").trim().toLowerCase(),
+      displayName,
+      photoUrl: user.photoURL ?? null,
+      lastSeen: now,
+      isOnline: true,
+      createdAt: now,
+    },
+    { merge: true },
+  );
+});

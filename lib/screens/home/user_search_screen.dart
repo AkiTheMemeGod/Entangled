@@ -72,9 +72,27 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
     final currentUser = ref.read(currentUserProvider).value;
     if (currentUser == null) return;
 
-    await ref
-        .read(firestoreServiceProvider)
-        .sendFriendRequest(currentUser, otherUser);
+    try {
+      await ref
+          .read(firestoreServiceProvider)
+          .sendFriendRequest(currentUser, otherUser);
+    } catch (e) {
+      if (!mounted) return;
+
+      final raw = e.toString();
+      String message = 'Unable to send friend request.';
+      if (raw.contains('CANNOT_ADD_SELF')) {
+        message = 'You cannot add yourself.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message, style: GoogleFonts.outfit()),
+          backgroundColor: AppColors.electricRose,
+        ),
+      );
+      return;
+    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -9,7 +9,6 @@ class UserModel {
   final bool isOnline;
   final String? fcmToken;
   final DateTime createdAt;
-  final List<String> blockedUsers;
 
   UserModel({
     required this.uid,
@@ -20,7 +19,6 @@ class UserModel {
     required this.isOnline,
     this.fcmToken,
     required this.createdAt,
-    this.blockedUsers = const [],
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map, String uid) {
@@ -33,12 +31,12 @@ class UserModel {
       isOnline: map['isOnline'] ?? false,
       fcmToken: map['fcmToken'],
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      blockedUsers: List<String>.from(map['blockedUsers'] ?? []),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
+      'uid': uid,
       'email': email,
       'displayName': displayName,
       if (photoUrl != null) 'photoUrl': photoUrl,
@@ -46,7 +44,6 @@ class UserModel {
       'isOnline': isOnline,
       if (fcmToken != null) 'fcmToken': fcmToken,
       'createdAt': Timestamp.fromDate(createdAt),
-      'blockedUsers': blockedUsers,
     };
   }
 
@@ -59,7 +56,6 @@ class UserModel {
     bool? isOnline,
     String? fcmToken,
     DateTime? createdAt,
-    List<String>? blockedUsers,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -70,7 +66,6 @@ class UserModel {
       isOnline: isOnline ?? this.isOnline,
       fcmToken: fcmToken ?? this.fcmToken,
       createdAt: createdAt ?? this.createdAt,
-      blockedUsers: blockedUsers ?? this.blockedUsers,
     );
   }
 }

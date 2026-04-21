@@ -149,14 +149,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       timestamp: DateTime.now(),
     );
 
-    await ref
-        .read(firestoreServiceProvider)
-        .sendMessage(
-          widget.chatId,
-          message,
-          currentUser.uid,
-          widget.otherUserId,
+    try {
+      await ref
+          .read(firestoreServiceProvider)
+          .sendMessage(
+            widget.chatId,
+            message,
+            currentUser.uid,
+            widget.otherUserId,
+          );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to send message',
+              style: GoogleFonts.outfit(),
+            ),
+            backgroundColor: AppColors.electricRose,
+            duration: const Duration(seconds: 3),
+          ),
         );
+      }
+    }
   }
 
   Future<void> _startRecording() async {
@@ -278,12 +293,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           timestamp: DateTime.now(),
         );
 
-        await firestoreService.sendMessage(
-          widget.chatId,
-          message,
-          currentUser.uid,
-          widget.otherUserId,
-        );
+        try {
+          await firestoreService.sendMessage(
+            widget.chatId,
+            message,
+            currentUser.uid,
+            widget.otherUserId,
+          );
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Failed to send voice note',
+                  style: GoogleFonts.outfit(),
+                ),
+                backgroundColor: AppColors.electricRose,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        }
       }
     } finally {
       _isRecordingStopInProgress = false;
@@ -443,12 +473,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         timestamp: DateTime.now(),
       );
 
-      await firestoreService.sendMessage(
-        widget.chatId,
-        message,
-        currentUser.uid,
-        widget.otherUserId,
-      );
+      try {
+        await firestoreService.sendMessage(
+          widget.chatId,
+          message,
+          currentUser.uid,
+          widget.otherUserId,
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to send image',
+                style: GoogleFonts.outfit(),
+              ),
+              backgroundColor: AppColors.electricRose,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -527,57 +572,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ],
                     ),
               actions: [
-                if (!isSelectionMode)
-                  PopupMenuButton(
-                    icon: const Icon(Icons.more_vert_rounded),
-                    color: AppColors.obsidianBase,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: const BorderSide(color: AppColors.glassBorder),
-                    ),
-                    itemBuilder: (BuildContext context) => [
-                      PopupMenuItem(
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.block_rounded,
-                              color: AppColors.electricRose,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Block User',
-                              style: GoogleFonts.outfit(
-                                color: AppColors.electricRose,
-                              ),
-                            ),
-                          ],
-                        ),
-                        onTap: () async {
-                          final firestore = ref.read(firestoreServiceProvider);
-                          final current = ref.read(currentUserProvider).value;
-                          if (current != null) {
-                            await firestore.blockUser(
-                              current.uid,
-                              widget.otherUserId,
-                            );
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'User blocked',
-                                    style: GoogleFonts.outfit(),
-                                  ),
-                                  backgroundColor: AppColors.obsidianBase,
-                                  duration: const Duration(seconds: 2),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                      ),
-                    ],
-                  ),
                 if (isSelectionMode)
                   IconButton(
                     icon: const Icon(

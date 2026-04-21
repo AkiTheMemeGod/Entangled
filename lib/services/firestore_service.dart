@@ -333,29 +333,6 @@ class FirestoreService {
     });
   }
 
-  // Blocking
-  Future<void> blockUser(String currentUid, String blockedUid) async {
-    final doc = _firestore.collection('users').doc(currentUid);
-    await doc.update({
-      'blockedUsers': FieldValue.arrayUnion([blockedUid]),
-    });
-  }
-
-  Future<void> unblockUser(String currentUid, String unblockedUid) async {
-    final doc = _firestore.collection('users').doc(currentUid);
-    await doc.update({
-      'blockedUsers': FieldValue.arrayRemove([unblockedUid]),
-    });
-  }
-
-  Future<List<String>> getBlockedUsers(String uid) async {
-    final doc = await _firestore.collection('users').doc(uid).get();
-    if (doc.exists) {
-      return List<String>.from(doc.get('blockedUsers') ?? []);
-    }
-    return [];
-  }
-
   // Chat deletion
   Future<void> deleteChat(String chatId) async {
     await _firestore.collection('chats').doc(chatId).delete();

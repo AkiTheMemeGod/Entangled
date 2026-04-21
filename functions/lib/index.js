@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onNewMessage = void 0;
+exports.onAuthUserCreate = exports.onNewMessage = void 0;
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 admin.initializeApp();
@@ -93,5 +93,23 @@ exports.onNewMessage = functions.firestore
         }
     });
     return Promise.all(sendPromises);
+});
+/**
+ * Create a Firestore profile document whenever a user signs up in Firebase Auth.
+ * This keeps /users in sync even if the client write is delayed or denied.
+ */
+exports.onAuthUserCreate = functions.auth.user().onCreate(async (user) => {
+    var _a, _b, _c, _d, _e;
+    const now = admin.firestore.Timestamp.fromDate(new Date());
+    const displayName = (_c = (_a = user.displayName) !== null && _a !== void 0 ? _a : (_b = user.email) === null || _b === void 0 ? void 0 : _b.split("@")[0]) !== null && _c !== void 0 ? _c : "User";
+    await db.collection("users").doc(user.uid).set({
+        uid: user.uid,
+        email: ((_d = user.email) !== null && _d !== void 0 ? _d : "").trim().toLowerCase(),
+        displayName,
+        photoUrl: (_e = user.photoURL) !== null && _e !== void 0 ? _e : null,
+        lastSeen: now,
+        isOnline: true,
+        createdAt: now,
+    }, { merge: true });
 });
 //# sourceMappingURL=index.js.map

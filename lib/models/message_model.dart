@@ -43,7 +43,9 @@ class MessageModel {
       audioUrl: map['audioUrl'],
       audioDurationMs: map['audioDurationMs'],
       type: map['type'] ?? 'text',
-      replyTo: map['replyTo'] != null ? Map<String, dynamic>.from(map['replyTo']) : null,
+      replyTo: map['replyTo'] != null
+          ? Map<String, dynamic>.from(map['replyTo'])
+          : null,
       status: map['status'] ?? 'sent',
       readBy: List<String>.from(map['readBy'] ?? []),
       deletedBy: List<String>.from(map['deletedBy'] ?? []),
@@ -66,7 +68,9 @@ class MessageModel {
       'readBy': readBy,
       'deletedBy': deletedBy,
       'isDeleted': isDeleted,
-      'timestamp': Timestamp.fromDate(timestamp), // use FieldValue.serverTimestamp() when sending
+      'timestamp': Timestamp.fromDate(
+        timestamp,
+      ), // use FieldValue.serverTimestamp() when sending
     };
   }
 }
