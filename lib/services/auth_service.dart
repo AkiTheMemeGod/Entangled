@@ -5,10 +5,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/user_model.dart';
 import 'firestore_service.dart';
+import 'messaging_service.dart';
 
 class AuthService {
   final GoTrueClient _auth = Supabase.instance.client.auth;
   final FirestoreService _firestoreService = FirestoreService();
+  final MessagingService _messagingService = MessagingService();
 
   static const List<String> _requiredTables = <String>[
     'users',
@@ -217,6 +219,11 @@ class AuthService {
       final user = _auth.currentUser;
       if (user != null) {
         await _firestoreService.updateUserPresence(user.id, false);
+        try {
+          await _messagingService.clearToken(user.id);
+        } catch (_) {
+          // Best effort only.
+        }
       }
       await GoogleSignIn.instance.signOut();
       await _auth.signOut();
