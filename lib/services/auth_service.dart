@@ -10,6 +10,80 @@ class AuthService {
   final GoTrueClient _auth = Supabase.instance.client.auth;
   final FirestoreService _firestoreService = FirestoreService();
 
+  static const List<String> _requiredTables = <String>[
+    'users',
+    'chats',
+    'messages',
+    'friend_requests',
+  ];
+
+  bool _mentionsRequiredTable(String message) {
+    for (final table in _requiredTables) {
+      if (message.contains(table)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _isMissingTableError(Object error) {
+    final message = error.toString().toLowerCase();
+    return _mentionsRequiredTable(message) &&
+        (message.contains('does not exist') ||
+            message.contains('relation') ||
+            message.contains('could not find the table'));
+  }
+
+  bool _isSchemaCompatibilityError(Object error) {
+    final message = error.toString().toLowerCase();
+    return _isMissingTableError(error) ||
+        (message.contains('schema cache') && _mentionsRequiredTable(message)) ||
+        message.contains('column') &&
+            (message.contains('does not exist') ||
+                message.contains('not found'));
+  }
+
+  UserModel _fallbackUserFromAuth(User user, {String? preferredDisplayName}) {
+    final createdAt = DateTime.tryParse(user.createdAt) ?? DateTime.now();
+    return UserModel(
+      uid: user.id,
+      email: user.email ?? '',
+      displayName:
+          preferredDisplayName ??
+          user.userMetadata?['full_name'] as String? ??
+          user.userMetadata?['displayName'] as String? ??
+          user.email?.split('@').first ??
+          'User',
+      photoUrl: user.userMetadata?['avatar_url'] as String?,
+      lastSeen: DateTime.now(),
+      isOnline: true,
+      createdAt: createdAt,
+    );
+  }
+
+  Never _throwFriendly(Object error) {
+    if (error is AuthApiException &&
+        error.code == 'over_email_send_rate_limit') {
+      throw Exception(
+        'Too many sign-up attempts right now. Please wait a few minutes, or disable email confirmation in Supabase Auth settings while developing.',
+      );
+    }
+
+    if (_isMissingTableError(error)) {
+      throw Exception(
+        'Supabase table setup is missing. Run the SQL schema setup script for users/chats/messages/friend_requests in your Supabase SQL editor.',
+      );
+    }
+
+    if (_isSchemaCompatibilityError(error)) {
+      throw Exception(
+        'Supabase schema looks incomplete for this app version. Re-run supabase/schema.sql to add missing columns/policies.',
+      );
+    }
+
+    throw Exception(error.toString());
+  }
+
   Stream<User?> get authStateChanges {
     final stream = _auth.onAuthStateChange.map((data) => data.session?.user);
     final current = _auth.currentUser;
@@ -38,13 +112,21 @@ class AuthService {
       final user = response.user;
 
       if (user != null) {
-        // Update last seen
-        await _firestoreService.updateUserPresence(user.id, true);
-        return await _firestoreService.getUser(user.id);
+        try {
+          // Update last seen/profile when schema supports full app fields.
+          await _firestoreService.updateUserPresence(user.id, true);
+          final profile = await _firestoreService.getUser(user.id);
+          return profile ?? _fallbackUserFromAuth(user);
+        } catch (error) {
+          if (_isSchemaCompatibilityError(error)) {
+            return _fallbackUserFromAuth(user);
+          }
+          _throwFriendly(error);
+        }
       }
       return null;
-    } catch (e) {
-      rethrow;
+    } catch (error) {
+      _throwFriendly(error);
     }
   }
 
@@ -71,12 +153,18 @@ class AuthService {
           createdAt: DateTime.now(),
         );
 
-        await _firestoreService.createUser(newUser);
+        try {
+          await _firestoreService.createUser(newUser);
+        } catch (error) {
+          if (!_isSchemaCompatibilityError(error)) {
+            _throwFriendly(error);
+          }
+        }
         return newUser;
       }
       return null;
-    } catch (e) {
-      rethrow;
+    } catch (error) {
+      _throwFriendly(error);
     }
   }
 
@@ -98,31 +186,29 @@ class AuthService {
       final user = _auth.currentUser;
 
       if (user != null) {
-        UserModel? existingUser = await _firestoreService.getUser(user.id);
+        final fallbackUser = _fallbackUserFromAuth(user);
 
-        if (existingUser == null) {
-          existingUser = UserModel(
-            uid: user.id,
-            email: user.email ?? '',
-            displayName:
-                user.userMetadata?['full_name'] as String? ??
-                user.email?.split('@').first ??
-                'User',
-            photoUrl: user.userMetadata?['avatar_url'] as String?,
-            lastSeen: DateTime.now(),
-            isOnline: true,
-            createdAt: DateTime.now(),
-          );
-          await _firestoreService.createUser(existingUser);
-        } else {
-          await _firestoreService.updateUserPresence(user.id, true);
+        try {
+          UserModel? existingUser = await _firestoreService.getUser(user.id);
+
+          if (existingUser == null) {
+            existingUser = fallbackUser;
+            await _firestoreService.createUser(existingUser);
+          } else {
+            await _firestoreService.updateUserPresence(user.id, true);
+          }
+
+          return existingUser;
+        } catch (error) {
+          if (_isSchemaCompatibilityError(error)) {
+            return fallbackUser;
+          }
+          _throwFriendly(error);
         }
-
-        return existingUser;
       }
       return null;
-    } catch (e) {
-      rethrow;
+    } catch (error) {
+      _throwFriendly(error);
     }
   }
 
@@ -134,8 +220,8 @@ class AuthService {
       }
       await GoogleSignIn.instance.signOut();
       await _auth.signOut();
-    } catch (e) {
-      rethrow;
+    } catch (error) {
+      _throwFriendly(error);
     }
   }
 }

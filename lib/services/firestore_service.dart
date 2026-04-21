@@ -26,18 +26,18 @@ class FirestoreService {
     await _supabase
         .from('users')
         .update({
-          'isOnline': isOnline,
-          'lastSeen': DateTime.now().toUtc().toIso8601String(),
+          'isonline': isOnline,
+          'lastseen': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', uid);
   }
 
   Future<void> updateFCMToken(String uid, String token) async {
-    await _supabase.from('users').update({'fcmToken': token}).eq('id', uid);
+    await _supabase.from('users').update({'fcmtoken': token}).eq('id', uid);
   }
 
   Future<void> updateUserPhotoUrl(String uid, String photoUrl) async {
-    await _supabase.from('users').update({'photoUrl': photoUrl}).eq('id', uid);
+    await _supabase.from('users').update({'photourl': photoUrl}).eq('id', uid);
   }
 
   Future<List<UserModel>> searchUsersByEmail(String email) async {
@@ -91,7 +91,8 @@ class FirestoreService {
           .map((row) => Map<String, dynamic>.from(row))
           .where(
             (map) =>
-                map['toId'] == uid && (map['status'] as String?) == 'pending',
+                (map['toid'] ?? map['toId']) == uid &&
+                (map['status'] as String?) == 'pending',
           )
           .map(
             (map) =>
@@ -223,7 +224,7 @@ class FirestoreService {
     return _supabase.from('messages').stream(primaryKey: ['id']).map((rows) {
       final messages = rows
           .map((row) => Map<String, dynamic>.from(row))
-          .where((map) => map['chatId'] == chatId)
+          .where((map) => (map['chatid'] ?? map['chatId']) == chatId)
           .map((map) => MessageModel.fromMap(map, map['id'] as String? ?? ''))
           .where((msg) => !msg.deletedBy.contains(currentUid))
           .toList();
@@ -239,23 +240,23 @@ class FirestoreService {
   ) async {
     final rows = await _supabase
         .from('messages')
-        .select('deletedBy')
+        .select('deletedby')
         .eq('id', messageId)
-        .eq('chatId', chatId)
+        .eq('chatid', chatId)
         .limit(1);
     if (rows.isEmpty) return;
 
     final existing = List<String>.from(
-      (rows.first as Map)['deletedBy'] ?? const <String>[],
+      (rows.first as Map)['deletedby'] ?? const <String>[],
     );
     if (!existing.contains(userId)) {
       existing.add(userId);
     }
     await _supabase
         .from('messages')
-        .update({'deletedBy': existing})
+        .update({'deletedby': existing})
         .eq('id', messageId)
-        .eq('chatId', chatId);
+        .eq('chatid', chatId);
   }
 
   Future<void> deleteMessageForAll(String chatId, String messageId) async {
@@ -263,17 +264,17 @@ class FirestoreService {
         .from('messages')
         .update({
           'text': null,
-          'imageUrl': null,
-          'audioUrl': null,
-          'isDeleted': true,
+          'imageurl': null,
+          'audiourl': null,
+          'isdeleted': true,
           'type': 'text',
         })
         .eq('id', messageId)
-        .eq('chatId', chatId);
+        .eq('chatid', chatId);
 
     await _supabase
         .from('chats')
-        .update({'lastMessage': 'This message was deleted'})
+        .update({'lastmessage': 'This message was deleted'})
         .eq('id', chatId);
   }
 
@@ -285,19 +286,19 @@ class FirestoreService {
   ) async {
     await _supabase.from('messages').insert({
       'id': message.id,
-      'chatId': chatId,
+      'chatid': chatId,
       ...message.toMap(),
     });
 
     final chatRows = await _supabase
         .from('chats')
-        .select('unreadCount')
+        .select('unreadcount')
         .eq('id', chatId)
         .limit(1);
 
     final unread = <String, int>{};
     if (chatRows.isNotEmpty) {
-      final unreadRaw = (chatRows.first as Map)['unreadCount'];
+      final unreadRaw = (chatRows.first as Map)['unreadcount'];
       if (unreadRaw is Map) {
         unread.addAll(
           unreadRaw.map(
@@ -311,10 +312,10 @@ class FirestoreService {
     await _supabase
         .from('chats')
         .update({
-          'lastMessage': message.type == 'image' ? 'Image' : message.text ?? '',
-          'lastMessageTime': DateTime.now().toUtc().toIso8601String(),
-          'lastMessageSenderId': currentUid,
-          'unreadCount': unread,
+          'lastmessage': message.type == 'image' ? 'Image' : message.text ?? '',
+          'lastmessagetime': DateTime.now().toUtc().toIso8601String(),
+          'lastmessagesenderid': currentUid,
+          'unreadcount': unread,
         })
         .eq('id', chatId);
   }
@@ -326,13 +327,13 @@ class FirestoreService {
   ) async {
     final chatRows = await _supabase
         .from('chats')
-        .select('unreadCount')
+        .select('unreadcount')
         .eq('id', chatId)
         .limit(1);
 
     final unread = <String, int>{};
     if (chatRows.isNotEmpty) {
-      final unreadRaw = (chatRows.first as Map)['unreadCount'];
+      final unreadRaw = (chatRows.first as Map)['unreadcount'];
       if (unreadRaw is Map) {
         unread.addAll(
           unreadRaw.map(
@@ -345,25 +346,25 @@ class FirestoreService {
 
     await _supabase
         .from('chats')
-        .update({'unreadCount': unread})
+        .update({'unreadcount': unread})
         .eq('id', chatId);
 
     final unreadMessages = await _supabase
         .from('messages')
-        .select('id, readBy, status')
-        .eq('chatId', chatId)
-        .eq('senderId', otherUid)
+        .select('id, readby, status')
+        .eq('chatid', chatId)
+        .eq('senderid', otherUid)
         .neq('status', 'read');
 
     for (final row in unreadMessages) {
       final msg = Map<String, dynamic>.from(row as Map);
-      final readBy = List<String>.from(msg['readBy'] ?? const <String>[]);
+      final readBy = List<String>.from(msg['readby'] ?? const <String>[]);
       if (!readBy.contains(uid)) {
         readBy.add(uid);
       }
       await _supabase
           .from('messages')
-          .update({'status': 'read', 'readBy': readBy})
+          .update({'status': 'read', 'readby': readBy})
           .eq('id', msg['id'] as String);
     }
   }
@@ -371,14 +372,14 @@ class FirestoreService {
   Future<void> setTypingStatus(String chatId, String uid, bool isTyping) async {
     final rows = await _supabase
         .from('chats')
-        .select('typingUsers')
+        .select('typingusers')
         .eq('id', chatId)
         .limit(1);
     final current = <String>[];
     if (rows.isNotEmpty) {
       current.addAll(
         List<String>.from(
-          (rows.first as Map)['typingUsers'] ?? const <String>[],
+          (rows.first as Map)['typingusers'] ?? const <String>[],
         ),
       );
     }
@@ -393,7 +394,7 @@ class FirestoreService {
 
     await _supabase
         .from('chats')
-        .update({'typingUsers': current})
+        .update({'typingusers': current})
         .eq('id', chatId);
   }
 
@@ -404,16 +405,16 @@ class FirestoreService {
   }) async {
     final chats = await _supabase
         .from('chats')
-        .select('id, participantNames, participantPhotos')
+        .select('id, participantnames, participantphotos')
         .contains('participants', [uid]);
 
     for (final row in chats) {
       final doc = Map<String, dynamic>.from(row as Map);
       final participantNames = Map<String, dynamic>.from(
-        doc['participantNames'] ?? const <String, dynamic>{},
+        doc['participantnames'] ?? const <String, dynamic>{},
       );
       final participantPhotos = Map<String, dynamic>.from(
-        doc['participantPhotos'] ?? const <String, dynamic>{},
+        doc['participantphotos'] ?? const <String, dynamic>{},
       );
 
       if (displayName != null) {
@@ -426,8 +427,8 @@ class FirestoreService {
       await _supabase
           .from('chats')
           .update({
-            'participantNames': participantNames,
-            'participantPhotos': participantPhotos,
+            'participantnames': participantNames,
+            'participantphotos': participantPhotos,
           })
           .eq('id', doc['id'] as String);
     }
