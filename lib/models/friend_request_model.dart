@@ -20,13 +20,17 @@ class FriendRequestModel {
   });
 
   factory FriendRequestModel.fromMap(Map<String, dynamic> map, String id) {
+    final fromEmail = (map['fromemail'] ?? map['fromEmail'] ?? '') as String;
+    final fromNameRaw = (map['fromname'] ?? map['fromName'] ?? '') as String;
     return FriendRequestModel(
       id: id,
-      fromId: map['fromId'] ?? '',
-      fromName: map['fromName'] ?? '',
-      fromEmail: map['fromEmail'] ?? '',
-      fromPhoto: map['fromPhoto'],
-      toId: map['toId'] ?? '',
+      fromId: map['fromid'] ?? map['fromId'] ?? '',
+      fromName: fromNameRaw.isNotEmpty
+          ? fromNameRaw
+          : fromEmail.split('@').first,
+      fromEmail: fromEmail,
+      fromPhoto: map['fromphoto'] ?? map['fromPhoto'],
+      toId: map['toid'] ?? map['toId'] ?? '',
       status: map['status'] ?? 'pending',
       timestamp: _parseDateTime(map['timestamp']),
     );
@@ -34,20 +38,24 @@ class FriendRequestModel {
 
   Map<String, dynamic> toMap() {
     return {
-      'fromId': fromId,
-      'fromName': fromName,
-      'fromEmail': fromEmail,
-      if (fromPhoto != null) 'fromPhoto': fromPhoto,
-      'toId': toId,
+      // Postgres folds unquoted mixed-case identifiers to lowercase.
+      'fromid': fromId,
+      'fromname': fromName,
+      'fromemail': fromEmail,
+      if (fromPhoto != null) 'fromphoto': fromPhoto,
+      'toid': toId,
       'status': status,
       'timestamp': timestamp.toUtc().toIso8601String(),
     };
   }
 
   static DateTime _parseDateTime(dynamic value) {
-    if (value is DateTime) return value;
-    if (value is String)
+    if (value is DateTime) {
+      return value;
+    }
+    if (value is String) {
       return DateTime.tryParse(value)?.toLocal() ?? DateTime.now();
+    }
     if (value is num) {
       return DateTime.fromMillisecondsSinceEpoch(
         value.toInt(),

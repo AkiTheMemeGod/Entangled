@@ -20,34 +20,42 @@ class UserModel {
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map, String uid) {
+    final email = (map['email'] ?? '') as String;
+    final displayName =
+        (map['displayname'] ?? map['displayName'] ?? '') as String;
     return UserModel(
       uid: uid,
-      email: map['email'] ?? '',
-      displayName: map['displayName'] ?? '',
-      photoUrl: map['photoUrl'],
-      lastSeen: _parseDateTime(map['lastSeen']),
-      isOnline: map['isOnline'] ?? false,
-      fcmToken: map['fcmToken'],
-      createdAt: _parseDateTime(map['createdAt']),
+      email: email,
+      displayName: displayName.isNotEmpty
+          ? displayName
+          : email.split('@').first,
+      photoUrl: map['photourl'] ?? map['photoUrl'],
+      lastSeen: _parseDateTime(map['lastseen'] ?? map['lastSeen']),
+      isOnline: (map['isonline'] ?? map['isOnline'] ?? false) as bool,
+      fcmToken: map['fcmtoken'] ?? map['fcmToken'],
+      createdAt: _parseDateTime(map['createdat'] ?? map['createdAt']),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'email': email,
-      'displayName': displayName,
-      if (photoUrl != null) 'photoUrl': photoUrl,
-      'lastSeen': lastSeen.toUtc().toIso8601String(),
-      'isOnline': isOnline,
-      if (fcmToken != null) 'fcmToken': fcmToken,
-      'createdAt': createdAt.toUtc().toIso8601String(),
+      'displayname': displayName,
+      if (photoUrl != null) 'photourl': photoUrl,
+      'lastseen': lastSeen.toUtc().toIso8601String(),
+      'isonline': isOnline,
+      if (fcmToken != null) 'fcmtoken': fcmToken,
+      'createdat': createdAt.toUtc().toIso8601String(),
     };
   }
 
   static DateTime _parseDateTime(dynamic value) {
-    if (value is DateTime) return value;
-    if (value is String)
+    if (value is DateTime) {
+      return value;
+    }
+    if (value is String) {
       return DateTime.tryParse(value)?.toLocal() ?? DateTime.now();
+    }
     if (value is num) {
       return DateTime.fromMillisecondsSinceEpoch(
         value.toInt(),

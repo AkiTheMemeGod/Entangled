@@ -34,46 +34,49 @@ class MessageModel {
   factory MessageModel.fromMap(Map<String, dynamic> map, String id) {
     return MessageModel(
       id: id,
-      senderId: map['senderId'] ?? '',
-      senderName: map['senderName'] ?? '',
+      senderId: map['senderid'] ?? map['senderId'] ?? '',
+      senderName: map['sendername'] ?? map['senderName'] ?? '',
       text: map['text'],
-      imageUrl: map['imageUrl'],
-      audioUrl: map['audioUrl'],
-      audioDurationMs: map['audioDurationMs'],
+      imageUrl: map['imageurl'] ?? map['imageUrl'],
+      audioUrl: map['audiourl'] ?? map['audioUrl'],
+      audioDurationMs: map['audiodurationms'] ?? map['audioDurationMs'],
       type: map['type'] ?? 'text',
-      replyTo: map['replyTo'] != null
-          ? Map<String, dynamic>.from(map['replyTo'])
+      replyTo: (map['replyto'] ?? map['replyTo']) != null
+          ? Map<String, dynamic>.from(map['replyto'] ?? map['replyTo'])
           : null,
       status: map['status'] ?? 'sent',
-      readBy: List<String>.from(map['readBy'] ?? []),
-      deletedBy: List<String>.from(map['deletedBy'] ?? []),
-      isDeleted: map['isDeleted'] ?? false,
+      readBy: List<String>.from(map['readby'] ?? map['readBy'] ?? []),
+      deletedBy: List<String>.from(map['deletedby'] ?? map['deletedBy'] ?? []),
+      isDeleted: map['isdeleted'] ?? map['isDeleted'] ?? false,
       timestamp: _parseDateTime(map['timestamp']),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'senderId': senderId,
-      'senderName': senderName,
+      'senderid': senderId,
+      'sendername': senderName,
       if (text != null) 'text': text,
-      if (imageUrl != null) 'imageUrl': imageUrl,
-      if (audioUrl != null) 'audioUrl': audioUrl,
-      if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
+      if (imageUrl != null) 'imageurl': imageUrl,
+      if (audioUrl != null) 'audiourl': audioUrl,
+      if (audioDurationMs != null) 'audiodurationms': audioDurationMs,
       'type': type,
-      if (replyTo != null) 'replyTo': replyTo,
+      if (replyTo != null) 'replyto': replyTo,
       'status': status,
-      'readBy': readBy,
-      'deletedBy': deletedBy,
-      'isDeleted': isDeleted,
+      'readby': readBy,
+      'deletedby': deletedBy,
+      'isdeleted': isDeleted,
       'timestamp': timestamp.toUtc().toIso8601String(),
     };
   }
 
   static DateTime _parseDateTime(dynamic value) {
-    if (value is DateTime) return value;
-    if (value is String)
+    if (value is DateTime) {
+      return value;
+    }
+    if (value is String) {
       return DateTime.tryParse(value)?.toLocal() ?? DateTime.now();
+    }
     if (value is num) {
       return DateTime.fromMillisecondsSinceEpoch(
         value.toInt(),
