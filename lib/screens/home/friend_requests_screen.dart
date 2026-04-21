@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/friend_request_provider.dart';
 import '../../theme/app_colors.dart';
@@ -133,7 +134,25 @@ class FriendRequestsScreen extends ConsumerWidget {
     WidgetRef ref,
     dynamic request,
   ) async {
-    final currentUser = ref.read(currentUserProvider).value;
+    var currentUser = ref.read(currentUserProvider).value;
+    if (currentUser == null) {
+      final authUser = ref.read(authStateProvider).value;
+      if (authUser != null) {
+        currentUser = UserModel(
+          uid: authUser.id,
+          email: authUser.email ?? '',
+          displayName:
+              authUser.userMetadata?['full_name'] as String? ??
+              authUser.userMetadata?['displayName'] as String? ??
+              authUser.email?.split('@').first ??
+              'User',
+          photoUrl: authUser.userMetadata?['avatar_url'] as String?,
+          lastSeen: DateTime.now(),
+          isOnline: true,
+          createdAt: DateTime.tryParse(authUser.createdAt) ?? DateTime.now(),
+        );
+      }
+    }
     if (currentUser == null) return;
 
     await ref

@@ -20,6 +20,34 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<UserModel> _searchResults = [];
   bool _isLoading = false;
+  final Set<String> _sendingRequestTo = <String>{};
+  final Set<String> _justSentRequestTo = <String>{};
+
+  UserModel? _resolveCurrentUser() {
+    final userFromProfile = ref.read(currentUserProvider).value;
+    if (userFromProfile != null) {
+      return userFromProfile;
+    }
+
+    final authUser = ref.read(authStateProvider).value;
+    if (authUser == null) {
+      return null;
+    }
+
+    return UserModel(
+      uid: authUser.id,
+      email: authUser.email ?? '',
+      displayName:
+          authUser.userMetadata?['full_name'] as String? ??
+          authUser.userMetadata?['displayName'] as String? ??
+          authUser.email?.split('@').first ??
+          'User',
+      photoUrl: authUser.userMetadata?['avatar_url'] as String?,
+      lastSeen: DateTime.now(),
+      isOnline: true,
+      createdAt: DateTime.tryParse(authUser.createdAt) ?? DateTime.now(),
+    );
+  }
 
   void _searchUsers(String query) async {
     if (query.trim().isEmpty) {
@@ -69,27 +97,73 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
   }
 
   void _sendRequest(UserModel otherUser) async {
-    final currentUser = ref.read(currentUserProvider).value;
-    if (currentUser == null) return;
-
-    await ref
-        .read(firestoreServiceProvider)
-        .sendFriendRequest(currentUser, otherUser);
-
-    if (mounted) {
+    final currentUser = _resolveCurrentUser();
+    if (currentUser == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Friend request sent!', style: GoogleFonts.outfit()),
-          backgroundColor: AppColors.success,
+          content: Text(
+            'Unable to load your account details. Please reopen the app and try again.',
+            style: GoogleFonts.outfit(),
+          ),
+          backgroundColor: AppColors.error,
         ),
       );
-      setState(() {});
+      return;
+    }
+
+    if (_sendingRequestTo.contains(otherUser.uid) ||
+        _justSentRequestTo.contains(otherUser.uid)) {
+      return;
+    }
+
+    setState(() {
+      _sendingRequestTo.add(otherUser.uid);
+    });
+
+    try {
+      await ref
+          .read(firestoreServiceProvider)
+          .sendFriendRequest(currentUser, otherUser);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Friend request sent!', style: GoogleFonts.outfit()),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+
+      setState(() {
+        _justSentRequestTo.add(otherUser.uid);
+      });
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not send friend request: $error',
+              style: GoogleFonts.outfit(),
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sendingRequestTo.remove(otherUser.uid);
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentUid = ref.watch(currentUserProvider).value?.uid;
+    final currentUid =
+        ref.watch(currentUserProvider).value?.uid ??
+        ref.watch(authStateProvider).value?.id;
 
     return Scaffold(
       appBar: AppBar(
@@ -185,7 +259,12 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                               .read(firestoreServiceProvider)
                               .getFriendshipStatus(currentUid ?? '', user.uid),
                           builder: (context, snapshot) {
-                            final status = snapshot.data ?? 'none';
+                            final status = _justSentRequestTo.contains(user.uid)
+                                ? 'pending_sent'
+                                : (snapshot.data ?? 'none');
+                            final isSending = _sendingRequestTo.contains(
+                              user.uid,
+                            );
 
                             String trailingText = '';
                             IconData? trailingIcon;
@@ -211,7 +290,9 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                               trailingText = 'Add';
                               trailingIcon = Icons.add_rounded;
                               color = Theme.of(context).colorScheme.primary;
-                              onTap = () => _sendRequest(user);
+                              if (!isSending) {
+                                onTap = () => _sendRequest(user);
+                              }
                             }
 
                             return Padding(
@@ -276,13 +357,17 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
-                                            trailingIcon,
+                                            isSending
+                                                ? Icons.hourglass_top_rounded
+                                                : trailingIcon,
                                             color: color,
                                             size: 18,
                                           ),
                                           const SizedBox(width: 8),
                                           Text(
-                                            trailingText,
+                                            isSending
+                                                ? 'Sending...'
+                                                : trailingText,
                                             style: GoogleFonts.outfit(
                                               color: color,
                                               fontSize: 13,

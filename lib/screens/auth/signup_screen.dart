@@ -30,15 +30,28 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   Future<void> _signup() async {
     setState(() => _isLoading = true);
     try {
-      await ref
+      final user = await ref
           .read(authServiceProvider)
           .signUpWithEmail(
             _emailController.text.trim(),
             _passwordController.text.trim(),
             _nameController.text.trim(),
           );
-      if (mounted) {
+
+      if (!mounted) {
+        return;
+      }
+
+      if (user != null) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Sign-up started. If email confirmation is enabled, verify your email and then sign in.',
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
