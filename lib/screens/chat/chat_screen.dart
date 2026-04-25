@@ -10,10 +10,13 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import '../../models/message_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/audio_player_widget.dart';
 import '../../widgets/animated_gradient_bg.dart';
 import '../../widgets/holographic_avatar.dart';
 import '../../widgets/lifeline_monitor.dart';
@@ -45,6 +48,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   MessageModel? _replyingTo;
   String? _replyingPreviewText;
   bool _isUploadingImages = false;
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  bool _isRecordingVoice = false;
+  bool _isUploadingVoice = false;
+  DateTime? _recordingStartedAt;
 
   @override
   void initState() {
@@ -56,6 +63,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     _setTypingStatus(false);
     _typingTimer?.cancel();
+    _audioRecorder.dispose();
     _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
     _scrollController.dispose();
@@ -303,6 +311,206 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  String _voiceReplyPreview() => '🎤 Voice note';
+
+  Future<void> _startVoiceRecording() async {
+    if (_isRecordingVoice || _isUploadingVoice || _isUploadingImages) return;
+
+    final hasPermission = await _audioRecorder.hasPermission();
+    if (!hasPermission) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Microphone permission is required to record voice notes.',
+            style: GoogleFonts.outfit(),
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final path =
+          '${tempDir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 96000,
+          sampleRate: 44100,
+        ),
+        path: path,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isRecordingVoice = true;
+        _recordingStartedAt = DateTime.now();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not start voice recording.',
+            style: GoogleFonts.outfit(),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _stopAndSendVoiceRecording() async {
+    if (!_isRecordingVoice || _isUploadingVoice) return;
+
+    final startedAt = _recordingStartedAt;
+    String? audioPath;
+    try {
+      audioPath = await _audioRecorder.stop();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRecordingVoice = false;
+          _recordingStartedAt = null;
+        });
+      }
+    }
+
+    if (audioPath == null) return;
+
+    final durationMs = startedAt == null
+        ? null
+        : DateTime.now().difference(startedAt).inMilliseconds;
+
+    if (durationMs != null && durationMs < 600) {
+      try {
+        await File(audioPath).delete();
+      } catch (_) {}
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Voice note is too short.',
+            style: GoogleFonts.outfit(),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await _sendVoiceMessage(audioPath, durationMs);
+  }
+
+  Future<void> _cancelVoiceRecording() async {
+    if (!_isRecordingVoice || _isUploadingVoice) return;
+
+    String? audioPath;
+    try {
+      audioPath = await _audioRecorder.stop();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRecordingVoice = false;
+          _recordingStartedAt = null;
+        });
+      }
+    }
+
+    if (audioPath != null) {
+      try {
+        await File(audioPath).delete();
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Voice note discarded.', style: GoogleFonts.outfit()),
+      ),
+    );
+  }
+
+  Future<void> _sendVoiceMessage(String audioPath, int? durationMs) async {
+    final currentUser = ref.read(currentUserProvider).value;
+    if (currentUser == null) return;
+
+    final storageService = ref.read(storageServiceProvider);
+    final firestoreService = ref.read(firestoreServiceProvider);
+    final replyData = _replyingTo != null
+        ? {
+            'id': _replyingTo!.id,
+            'text': _replyingPreviewText ?? _replyingTo!.text ?? '📷 Image',
+            'senderId': _replyingTo!.senderId,
+            'senderName': _replyingTo!.senderName,
+          }
+        : null;
+
+    if (mounted) {
+      setState(() {
+        _isUploadingVoice = true;
+      });
+    }
+
+    try {
+      final audioUrl = await storageService.uploadChatAudio(
+        widget.chatId,
+        File(audioPath),
+      );
+
+      if (audioUrl == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to upload voice note.',
+              style: GoogleFonts.outfit(),
+            ),
+          ),
+        );
+        return;
+      }
+
+      final message = MessageModel(
+        id: const Uuid().v4(),
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName,
+        audioUrl: audioUrl,
+        audioDurationMs: durationMs,
+        type: 'audio',
+        status: 'sent',
+        readBy: [],
+        replyTo: replyData,
+        timestamp: DateTime.now(),
+      );
+
+      await firestoreService.sendMessage(
+        widget.chatId,
+        message,
+        currentUser.uid,
+        widget.otherUserId,
+      );
+
+      if (mounted) {
+        setState(() {
+          _replyingTo = null;
+          _replyingPreviewText = null;
+        });
+      }
+      _setTypingStatus(false);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingVoice = false;
+        });
+      }
+      try {
+        await File(audioPath).delete();
+      } catch (_) {}
+    }
+  }
+
   bool _isImageMessage(MessageModel message) {
     return message.type == 'image' &&
         message.imageUrl != null &&
@@ -313,6 +521,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     MessageModel message,
     int imageBatchCount,
   ) {
+    if (message.type == 'audio') {
+      return _voiceReplyPreview();
+    }
     if (_isImageMessage(message)) {
       if (imageBatchCount > 1) {
         return '$imageBatchCount images';
@@ -834,6 +1045,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                             allMessages: allMessages,
                                             isSelectionMode: isSelectionMode,
                                           )
+                                        else if (message.type == 'audio' &&
+                                            message.audioUrl != null)
+                                          AudioPlayerWidget(
+                                            audioUrl: message.audioUrl!,
+                                            isMe: isMe,
+                                            initialDurationMs:
+                                                message.audioDurationMs,
+                                          )
                                         else
                                           Padding(
                                             padding: const EdgeInsets.only(
@@ -922,6 +1141,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildMessageInput(bool isOtherUserTyping, UserModel? currentUser) {
+    final hasText = _messageController.text.trim().isNotEmpty;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       decoration: BoxDecoration(
@@ -933,6 +1154,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_isRecordingVoice)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.mic_rounded,
+                    size: 16,
+                    color: AppColors.electricRose,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Recording voice note... tap stop to send',
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: _cancelVoiceRecording,
+                    icon: const Icon(Icons.close_rounded, size: 16),
+                    label: Text(
+                      'Discard',
+                      style: GoogleFonts.outfit(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (_replyingTo != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
@@ -976,7 +1227,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               Text(
                                 _replyingPreviewText ??
                                     _replyingTo!.text ??
-                                    '📷 Image',
+                                    (_replyingTo!.type == 'audio'
+                                        ? _voiceReplyPreview()
+                                        : '📷 Image'),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.outfit(
@@ -1039,13 +1292,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 size: 24,
                                 color: Theme.of(context).colorScheme.onSurface,
                               ),
-                        onPressed: _isUploadingImages ? null : _sendImages,
+                        onPressed:
+                            (_isUploadingImages ||
+                                _isUploadingVoice ||
+                                _isRecordingVoice)
+                            ? null
+                            : _sendImages,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: _messageController,
+                        readOnly: _isRecordingVoice,
                         style: GoogleFonts.outfit(
                           fontSize: 15,
                           color: Theme.of(context).colorScheme.onSurface,
@@ -1093,12 +1352,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ],
                       ),
                       child: IconButton(
-                        icon: const Icon(
-                          Icons.arrow_upward_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        onPressed: _sendMessage,
+                        icon: _isUploadingVoice
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Icon(
+                                hasText
+                                    ? Icons.arrow_upward_rounded
+                                    : (_isRecordingVoice
+                                          ? Icons.stop_rounded
+                                          : Icons.mic_rounded),
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                        onPressed: _isUploadingVoice
+                            ? null
+                            : () {
+                                if (_isRecordingVoice) {
+                                  _stopAndSendVoiceRecording();
+                                  return;
+                                }
+                                if (hasText) {
+                                  _sendMessage();
+                                  return;
+                                }
+                                _startVoiceRecording();
+                              },
                       ),
                     ),
                     const SizedBox(width: 4),

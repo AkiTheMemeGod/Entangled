@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -31,6 +32,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   double _playbackRate = 1.0;
   bool _isInit = false;
   String? _cachedFilePath;
+  PlayerState _playerState = PlayerState.stopped;
 
   static const Duration _replayTolerance = Duration(milliseconds: 220);
 
@@ -43,6 +45,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     _audioPlayer.onPlayerStateChanged.listen((state) {
       if (mounted) {
         setState(() {
+          _playerState = state;
           _isPlaying = state == PlayerState.playing;
           if (state == PlayerState.completed) {
             _position = _duration;
@@ -88,7 +91,18 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
     _isCaching = true;
     try {
-      final file = await DefaultCacheManager().getSingleFile(widget.audioUrl);
+      final cacheManager = DefaultCacheManager();
+
+      final cached = await cacheManager.getFileFromCache(widget.audioUrl);
+      if (cached != null && cached.file.existsSync()) {
+        if (!mounted) return;
+        setState(() {
+          _cachedFilePath = cached.file.path;
+        });
+        return;
+      }
+
+      final file = await cacheManager.getSingleFile(widget.audioUrl);
       if (!mounted) return;
       setState(() {
         _cachedFilePath = file.path;
@@ -103,7 +117,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   Future<void> _setSourceIfNeeded() async {
     if (_isInit) return;
 
-    if (_cachedFilePath != null) {
+    if (_hasValidCachedFilePath) {
       await _audioPlayer.setSourceDeviceFile(_cachedFilePath!);
     } else {
       await _audioPlayer.setSourceUrl(widget.audioUrl);
@@ -112,10 +126,16 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   }
 
   Source _currentSource() {
-    if (_cachedFilePath != null) {
+    if (_hasValidCachedFilePath) {
       return DeviceFileSource(_cachedFilePath!);
     }
     return UrlSource(widget.audioUrl);
+  }
+
+  bool get _hasValidCachedFilePath {
+    final path = _cachedFilePath;
+    if (path == null || path.isEmpty) return false;
+    return File(path).existsSync();
   }
 
   Future<void> _initPlayerIfNeeded() async {
@@ -142,9 +162,10 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       await _initPlayerIfNeeded();
       final total = _effectiveDuration;
       final atEnd =
-          total > Duration.zero &&
-          (_position.inMilliseconds >=
-              total.inMilliseconds - _replayTolerance.inMilliseconds);
+          _playerState == PlayerState.completed ||
+          (total > Duration.zero &&
+              (_position.inMilliseconds >=
+                  total.inMilliseconds - _replayTolerance.inMilliseconds));
 
       if (atEnd) {
         await _audioPlayer.play(_currentSource(), position: Duration.zero);
@@ -154,8 +175,14 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
             _position = Duration.zero;
           });
         }
-      } else {
+      } else if (_playerState == PlayerState.paused) {
         await _audioPlayer.resume();
+      } else {
+        final startPosition = _position > Duration.zero
+            ? _position
+            : Duration.zero;
+        await _audioPlayer.play(_currentSource(), position: startPosition);
+        _isInit = true;
       }
 
       await _audioPlayer.setPlaybackRate(_playbackRate);

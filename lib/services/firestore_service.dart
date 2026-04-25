@@ -345,7 +345,11 @@ class FirestoreService {
     await _supabase
         .from('chats')
         .update({
-          'lastmessage': message.type == 'image' ? 'Image' : message.text ?? '',
+          'lastmessage': message.type == 'image'
+              ? 'Image'
+              : message.type == 'audio'
+              ? 'Voice note'
+              : message.text ?? '',
           'lastmessagetime': DateTime.now().toUtc().toIso8601String(),
           'lastmessagesenderid': currentUid,
           'unreadcount': unread,
