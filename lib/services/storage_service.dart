@@ -1,20 +1,26 @@
 import 'dart:io';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StorageService {
-  // IMPORTANT: Replace these with your actual Cloudinary credentials
-  // Get these from your Cloudinary Dashboard and Settings -> Upload
-  static const String _cloudName = 'djutzk9gd';
-  static const String _uploadPreset = 'entangled';
+  static const String _bucketName = 'media';
+
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   Future<String?> uploadProfileImage(String uid, File imageFile) async {
-    return _uploadToCloudinary(imageFile, folder: 'profile_images');
+    return _uploadToSupabaseStorage(
+      imageFile,
+      folder: 'profile_images/$uid',
+      contentType: _contentTypeFromPath(imageFile.path, fallback: 'image/jpeg'),
+    );
   }
 
   Future<String?> uploadChatImage(String chatId, File imageFile) async {
-    return _uploadToCloudinary(imageFile, folder: 'chat_images/$chatId');
+    return _uploadToSupabaseStorage(
+      imageFile,
+      folder: 'chat_images/$chatId',
+      contentType: _contentTypeFromPath(imageFile.path, fallback: 'image/jpeg'),
+    );
   }
 
   // Alias to prevent naming mismatch errors in ChatScreen
@@ -23,46 +29,86 @@ class StorageService {
   }
 
   Future<String?> uploadChatAudio(String chatId, File audioFile) async {
-    return _uploadToCloudinary(audioFile, folder: 'chat_audio/$chatId', resourceType: 'video');
+    return _uploadToSupabaseStorage(
+      audioFile,
+      folder: 'chat_audio/$chatId',
+      contentType: _contentTypeFromPath(audioFile.path, fallback: 'audio/mpeg'),
+    );
   }
 
-  Future<String?> _uploadToCloudinary(
+  Future<String?> _uploadToSupabaseStorage(
     File file, {
     required String folder,
-    String resourceType = 'image',
+    required String contentType,
   }) async {
-    if (_cloudName == 'YOUR_CLOUD_NAME') {
-      debugPrint('CLOUD_STORAGE_ERROR: Cloudinary credentials not configured.');
+    if (!file.existsSync()) {
+      debugPrint('CLOUD_STORAGE_ERROR: File not found at ${file.path}');
       return null;
     }
 
     try {
-      final url = Uri.parse(
-        'https://api.cloudinary.com/v1_1/$_cloudName/$resourceType/upload',
+      final storage = _supabase.storage.from(_bucketName);
+      final extension = _fileExtension(file.path);
+      final filename = '${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final objectPath = '$folder/$filename';
+
+      await storage.upload(
+        objectPath,
+        file,
+        fileOptions: FileOptions(
+          upsert: true,
+          cacheControl: '3600',
+          contentType: contentType,
+        ),
       );
 
-      final request = http.MultipartRequest('POST', url)
-        ..fields['upload_preset'] = _uploadPreset
-        ..fields['folder'] = folder
-        ..files.add(await http.MultipartFile.fromPath('file', file.path));
-
-      final response = await request.send();
-      final responseData = await response.stream.toBytes();
-      final responseString = utf8.decode(responseData);
-      final jsonData = json.decode(responseString);
-
-      if (response.statusCode == 200) {
-        return jsonData['secure_url'] as String;
-      } else {
-        debugPrint(
-          'CLOUD_STORAGE_ERROR: ${jsonData['error']?['message'] ?? 'Unknown error'}',
-        );
-        return null;
-      }
+      return storage.getPublicUrl(objectPath);
     } catch (e, stack) {
       debugPrint('CLOUD_STORAGE_EXCEPTION: $e');
       debugPrint('STACKTRACE: $stack');
       return null;
+    }
+  }
+
+  String _fileExtension(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    final segment = normalized.split('/').last;
+    final dotIndex = segment.lastIndexOf('.');
+    if (dotIndex == -1 || dotIndex == segment.length - 1) {
+      return 'bin';
+    }
+    return segment.substring(dotIndex + 1).toLowerCase();
+  }
+
+  String _contentTypeFromPath(String path, {required String fallback}) {
+    switch (_fileExtension(path)) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      case 'bmp':
+        return 'image/bmp';
+      case 'heic':
+        return 'image/heic';
+      case 'heif':
+        return 'image/heif';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'aac':
+        return 'audio/aac';
+      case 'm4a':
+        return 'audio/mp4';
+      case 'wav':
+        return 'audio/wav';
+      case 'ogg':
+        return 'audio/ogg';
+      case 'mp3':
+        return 'audio/mpeg';
+      default:
+        return fallback;
     }
   }
 }
