@@ -6,9 +6,11 @@ import '../models/friend_request_model.dart';
 import '../models/message_model.dart';
 import '../models/notification_model.dart';
 import '../models/user_model.dart';
+import 'storage_service.dart';
 
 class FirestoreService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final StorageService _storageService = StorageService();
 
   // Users
   Future<void> createUser(UserModel user) async {
@@ -293,6 +295,23 @@ class FirestoreService {
   }
 
   Future<void> deleteMessageForAll(String chatId, String messageId) async {
+    final rows = await _supabase
+        .from('messages')
+        .select('imageurl, audiourl')
+        .eq('id', messageId)
+        .eq('chatid', chatId)
+        .limit(1);
+
+    if (rows.isNotEmpty) {
+      final message = Map<String, dynamic>.from(rows.first as Map);
+      await _storageService.deletePublicMediaUrl(
+        message['imageurl'] as String?,
+      );
+      await _storageService.deletePublicMediaUrl(
+        message['audiourl'] as String?,
+      );
+    }
+
     await _supabase
         .from('messages')
         .update({

@@ -36,6 +36,20 @@ class StorageService {
     );
   }
 
+  Future<void> deletePublicMediaUrl(String? publicUrl) async {
+    if (publicUrl == null || publicUrl.isEmpty) return;
+
+    final objectPath = _extractObjectPathFromPublicUrl(publicUrl);
+    if (objectPath == null) return;
+
+    try {
+      await _supabase.storage.from(_bucketName).remove([objectPath]);
+    } catch (e, stack) {
+      debugPrint('CLOUD_STORAGE_DELETE_EXCEPTION: $e');
+      debugPrint('STACKTRACE: $stack');
+    }
+  }
+
   Future<String?> _uploadToSupabaseStorage(
     File file, {
     required String folder,
@@ -110,5 +124,20 @@ class StorageService {
       default:
         return fallback;
     }
+  }
+
+  String? _extractObjectPathFromPublicUrl(String publicUrl) {
+    final uri = Uri.tryParse(publicUrl);
+    if (uri == null || uri.pathSegments.isEmpty) return null;
+
+    final segments = uri.pathSegments
+        .map((segment) => Uri.decodeComponent(segment))
+        .toList();
+    final bucketIndex = segments.lastIndexOf(_bucketName);
+    if (bucketIndex == -1 || bucketIndex >= segments.length - 1) {
+      return null;
+    }
+
+    return segments.sublist(bucketIndex + 1).join('/');
   }
 }
