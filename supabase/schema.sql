@@ -41,6 +41,7 @@ create table if not exists public.messages (
   replyTo jsonb,
   status text not null default 'sent',
   readBy text[] not null default '{}',
+  reactions jsonb not null default '{}'::jsonb,
   deletedBy text[] not null default '{}',
   isDeleted boolean not null default false,
   timestamp timestamptz not null default now()

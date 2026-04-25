@@ -330,6 +330,56 @@ class FirestoreService {
         .eq('id', chatId);
   }
 
+  Future<void> toggleMessageReaction({
+    required String chatId,
+    required String messageId,
+    required String emoji,
+    required String userId,
+  }) async {
+    final rows = await _supabase
+        .from('messages')
+        .select('reactions')
+        .eq('id', messageId)
+        .eq('chatid', chatId)
+        .limit(1);
+    if (rows.isEmpty) return;
+
+    final existingRaw = (rows.first as Map)['reactions'];
+    final reactions = <String, List<String>>{};
+    if (existingRaw is Map) {
+      existingRaw.forEach((key, value) {
+        if (key is! String || value is! List) return;
+        reactions[key] = value.map((e) => e.toString()).toList();
+      });
+    }
+
+    final didHaveSameReaction = List<String>.from(
+      reactions[emoji] ?? const [],
+    ).contains(userId);
+
+    for (final key in reactions.keys.toList()) {
+      final users = List<String>.from(reactions[key] ?? const []);
+      users.remove(userId);
+      if (users.isEmpty) {
+        reactions.remove(key);
+      } else {
+        reactions[key] = users;
+      }
+    }
+
+    if (!didHaveSameReaction) {
+      final usersForEmoji = List<String>.from(reactions[emoji] ?? const []);
+      usersForEmoji.add(userId);
+      reactions[emoji] = usersForEmoji;
+    }
+
+    await _supabase
+        .from('messages')
+        .update({'reactions': reactions})
+        .eq('id', messageId)
+        .eq('chatid', chatId);
+  }
+
   Future<void> sendMessage(
     String chatId,
     MessageModel message,

@@ -10,6 +10,7 @@ class MessageModel {
   final Map<String, dynamic>? replyTo; // {id, text, sender}
   final String status; // "sent", "delivered", "read"
   final List<String> readBy;
+  final Map<String, List<String>> reactions;
   final List<String> deletedBy;
   final bool isDeleted;
   final DateTime timestamp;
@@ -26,6 +27,7 @@ class MessageModel {
     this.replyTo,
     required this.status,
     required this.readBy,
+    this.reactions = const {},
     this.deletedBy = const [],
     this.isDeleted = false,
     required this.timestamp,
@@ -46,6 +48,7 @@ class MessageModel {
           : null,
       status: map['status'] ?? 'sent',
       readBy: List<String>.from(map['readby'] ?? map['readBy'] ?? []),
+      reactions: _parseReactions(map['reactions']),
       deletedBy: List<String>.from(map['deletedby'] ?? map['deletedBy'] ?? []),
       isDeleted: map['isdeleted'] ?? map['isDeleted'] ?? false,
       timestamp: _parseDateTime(map['timestamp']),
@@ -64,10 +67,22 @@ class MessageModel {
       if (replyTo != null) 'replyto': replyTo,
       'status': status,
       'readby': readBy,
+      if (reactions.isNotEmpty) 'reactions': reactions,
       'deletedby': deletedBy,
       'isdeleted': isDeleted,
       'timestamp': timestamp.toUtc().toIso8601String(),
     };
+  }
+
+  static Map<String, List<String>> _parseReactions(dynamic value) {
+    if (value is! Map) return const {};
+
+    final reactions = <String, List<String>>{};
+    value.forEach((key, users) {
+      if (key is! String || users is! List) return;
+      reactions[key] = users.map((e) => e.toString()).toList();
+    });
+    return reactions;
   }
 
   static DateTime _parseDateTime(dynamic value) {

@@ -40,6 +40,15 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
+  static const List<String> _reactionEmojis = [
+    '👍',
+    '❤️',
+    '😂',
+    '😮',
+    '😢',
+    '🙏',
+  ];
+
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isTyping = false;
@@ -52,6 +61,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _isRecordingVoice = false;
   bool _isUploadingVoice = false;
   DateTime? _recordingStartedAt;
+  Offset? _lastReactionTapPosition;
 
   @override
   void initState() {
@@ -162,6 +172,149 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _selectedMessageIds.add(messageId);
       }
     });
+  }
+
+  Future<void> _toggleReaction(MessageModel message, String emoji) async {
+    final currentUser = ref.read(currentUserProvider).value;
+    if (currentUser == null || message.isDeleted) return;
+
+    try {
+      await ref
+          .read(firestoreServiceProvider)
+          .toggleMessageReaction(
+            chatId: widget.chatId,
+            messageId: message.id,
+            emoji: emoji,
+            userId: currentUser.uid,
+          );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not update reaction. Please try again.',
+            style: GoogleFonts.outfit(),
+          ),
+        ),
+      );
+    }
+  }
+
+  bool _didUserReact(MessageModel message, String uid) {
+    for (final users in message.reactions.values) {
+      if (users.contains(uid)) return true;
+    }
+    return false;
+  }
+
+  Future<void> _showReactionPicker(
+    MessageModel message, {
+    Offset? anchor,
+  }) async {
+    final currentUser = ref.read(currentUserProvider).value;
+    if (currentUser == null || message.isDeleted) return;
+
+    final size = MediaQuery.of(context).size;
+    const pickerWidth = 286.0;
+    final safeTop = MediaQuery.of(context).padding.top + 10;
+    final target = anchor ?? Offset(size.width / 2, size.height / 2);
+    final top = (target.dy - 72).clamp(safeTop, size.height - 110).toDouble();
+    final left = (target.dx - (pickerWidth / 2))
+        .clamp(10.0, size.width - pickerWidth - 10)
+        .toDouble();
+
+    final selectedEmoji = await showGeneralDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.transparent,
+      barrierLabel: 'Message reactions',
+      transitionDuration: const Duration(milliseconds: 130),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return Material(
+          color: Colors.transparent,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () => Navigator.of(dialogContext).pop(),
+                  behavior: HitTestBehavior.opaque,
+                ),
+              ),
+              Positioned(
+                top: top,
+                left: left,
+                child:
+                    Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF22282C),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: Colors.white.withAlpha(24),
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black54,
+                                blurRadius: 18,
+                                offset: Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: _reactionEmojis.map((emoji) {
+                              final isActive =
+                                  message.reactions[emoji]?.contains(
+                                    currentUser.uid,
+                                  ) ??
+                                  false;
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                ),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(999),
+                                  onTap: () =>
+                                      Navigator.of(dialogContext).pop(emoji),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 120),
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: isActive
+                                          ? Colors.white.withAlpha(26)
+                                          : Colors.transparent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      emoji,
+                                      style: const TextStyle(fontSize: 24),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        )
+                        .animate()
+                        .scale(
+                          begin: const Offset(0.92, 0.92),
+                          duration: 120.ms,
+                        )
+                        .fadeIn(duration: 120.ms),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selectedEmoji == null) return;
+    await _toggleReaction(message, selectedEmoji);
   }
 
   void _cancelSelection() {
@@ -850,252 +1003,266 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       },
       child: GestureDetector(
         onLongPress: () => _toggleMessageSelection(message.id),
+        onDoubleTapDown: (details) {
+          _lastReactionTapPosition = details.globalPosition;
+        },
+        onDoubleTap: () {
+          if (!isSelectionMode && !message.isDeleted) {
+            _showReactionPicker(message, anchor: _lastReactionTapPosition);
+          }
+        },
         onTap: () {
           if (isSelectionMode) {
             _toggleMessageSelection(message.id);
           }
         },
-        child:
-            AnimatedContainer(
-                  duration: 200.ms,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 4.0,
-                    horizontal: 8.0,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.radiantViolet.withAlpha(38)
-                        : Colors.transparent,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: isMe
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: isMe
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          if (!isMe) ...[
-                            HolographicAvatar(
-                              uid: widget.otherUserId,
-                              radius: 14,
-                              fallbackPhotoUrl: widget.otherUserPhoto,
-                              fallbackName: widget.otherUserName,
-                              showGlow: false,
-                              heroTag: null,
-                            ),
-                            const SizedBox(width: 8),
-                          ],
-                          Flexible(
-                            child: Container(
-                              padding: message.type == 'image'
-                                  ? EdgeInsets.zero
-                                  : const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
-                              decoration: BoxDecoration(
-                                color: message.isDeleted
-                                    ? (Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? Colors.white10
-                                          : Colors.black12)
-                                    : (isMe
-                                          ? (Theme.of(context).brightness ==
-                                                    Brightness.dark
-                                                ? Theme.of(context)
-                                                      .colorScheme
-                                                      .primary
-                                                      .withAlpha(46)
-                                                : Theme.of(context)
-                                                      .colorScheme
-                                                      .primary
-                                                      .withAlpha(31))
-                                          : (Theme.of(context).brightness ==
-                                                    Brightness.dark
-                                                ? Colors.white.withAlpha(20)
-                                                : Colors.black.withAlpha(20))),
-                                borderRadius: BorderRadius.only(
-                                  topLeft: const Radius.circular(16),
-                                  topRight: const Radius.circular(16),
-                                  bottomLeft: Radius.circular(isMe ? 16 : 4),
-                                  bottomRight: Radius.circular(isMe ? 4 : 16),
+        child: AnimatedContainer(
+          duration: 200.ms,
+          padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.radiantViolet.withAlpha(38)
+                : Colors.transparent,
+          ),
+          child: Column(
+            crossAxisAlignment: isMe
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: isMe
+                    ? MainAxisAlignment.end
+                    : MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (!isMe) ...[
+                    HolographicAvatar(
+                      uid: widget.otherUserId,
+                      radius: 14,
+                      fallbackPhotoUrl: widget.otherUserPhoto,
+                      fallbackName: widget.otherUserName,
+                      showGlow: false,
+                      heroTag: null,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Flexible(
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          padding: message.type == 'image'
+                              ? EdgeInsets.zero
+                              : const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
                                 ),
-                                boxShadow: isMe && !message.isDeleted
-                                    ? [
-                                        BoxShadow(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary.withAlpha(31),
-                                          blurRadius: 6,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ]
-                                    : [],
-                                border:
-                                    !isMe &&
-                                        !message.isDeleted &&
-                                        Theme.of(context).brightness ==
-                                            Brightness.light
-                                    ? Border.all(
-                                        color: Colors.black.withAlpha(13),
-                                      )
-                                    : null,
-                              ),
-                              child: message.isDeleted
-                                  ? Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.block_flipped,
-                                            size: 14,
-                                            color: Colors.white.withAlpha(128),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            'This message was deleted',
-                                            style: GoogleFonts.outfit(
-                                              color: Colors.white.withAlpha(
-                                                128,
-                                              ),
-                                              fontSize: 14,
-                                              fontStyle: FontStyle.italic,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  : Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        // Quoted Reply Preview
-                                        if (message.replyTo != null) ...[
-                                          Container(
-                                            margin: const EdgeInsets.only(
-                                              bottom: 4,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 3,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withAlpha(38),
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                              border: Border(
-                                                left: BorderSide(
-                                                  color: isMe
-                                                      ? Colors.white70
-                                                      : AppColors.radiantViolet,
-                                                  width: 2,
-                                                ),
-                                              ),
-                                            ),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  message.replyTo!['senderId'] ==
-                                                          currentUser?.uid
-                                                      ? 'You'
-                                                      : (message.replyTo!['senderName'] ??
-                                                            'Unknown'),
-                                                  style: GoogleFonts.outfit(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: isMe
-                                                        ? Colors.white
-                                                        : AppColors
-                                                              .radiantViolet,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  message.replyTo!['text'] ??
-                                                      '',
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: GoogleFonts.outfit(
-                                                    fontSize: 9,
-                                                    color: isMe
-                                                        ? Colors.white
-                                                              .withAlpha(204)
-                                                        : Colors.white70,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                        if (message.type == 'image' &&
-                                            message.imageUrl != null)
-                                          _buildGroupedImageContent(
-                                            group: imageGroup,
-                                            allMessages: allMessages,
-                                            isSelectionMode: isSelectionMode,
-                                          )
-                                        else if (message.type == 'audio' &&
-                                            message.audioUrl != null)
-                                          AudioPlayerWidget(
-                                            audioUrl: message.audioUrl!,
-                                            isMe: isMe,
-                                            initialDurationMs:
-                                                message.audioDurationMs,
-                                          )
-                                        else
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              right: 2.0,
-                                            ),
-                                            child: Text(
-                                              message.text ?? '',
-                                              style: GoogleFonts.outfit(
-                                                color: isMe
-                                                    ? (Theme.of(
-                                                                context,
-                                                              ).brightness ==
-                                                              Brightness.dark
-                                                          ? Colors.white
-                                                          : Theme.of(context)
-                                                                .colorScheme
-                                                                .onSurface)
-                                                    : Theme.of(
-                                                        context,
-                                                      ).colorScheme.onSurface,
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w400,
-                                              ),
-                                            ),
-                                          ),
-                                        const SizedBox(height: 2),
-                                        _buildMetadata(
-                                          message,
-                                          isMe,
-                                          onImage: message.type == 'image',
-                                        ),
-                                      ],
+                          decoration: BoxDecoration(
+                            color: message.isDeleted
+                                ? (Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.white10
+                                      : Colors.black12)
+                                : (isMe
+                                      ? (Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                                  .withAlpha(46)
+                                            : Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                                  .withAlpha(31))
+                                      : (Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? Colors.white.withAlpha(20)
+                                            : Colors.black.withAlpha(20))),
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(16),
+                              topRight: const Radius.circular(16),
+                              bottomLeft: Radius.circular(isMe ? 16 : 4),
+                              bottomRight: Radius.circular(isMe ? 4 : 16),
+                            ),
+                            boxShadow: isMe && !message.isDeleted
+                                ? [
+                                    BoxShadow(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary.withAlpha(31),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
                                     ),
+                                  ]
+                                : [],
+                            border:
+                                !isMe &&
+                                    !message.isDeleted &&
+                                    Theme.of(context).brightness ==
+                                        Brightness.light
+                                ? Border.all(color: Colors.black.withAlpha(13))
+                                : null,
+                          ),
+                          child: message.isDeleted
+                              ? Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.block_flipped,
+                                        size: 14,
+                                        color: Colors.white.withAlpha(128),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'This message was deleted',
+                                        style: GoogleFonts.outfit(
+                                          color: Colors.white.withAlpha(128),
+                                          fontSize: 14,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Quoted Reply Preview
+                                    if (message.replyTo != null) ...[
+                                      Container(
+                                        margin: const EdgeInsets.only(
+                                          bottom: 4,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withAlpha(38),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                          border: Border(
+                                            left: BorderSide(
+                                              color: isMe
+                                                  ? Colors.white70
+                                                  : AppColors.radiantViolet,
+                                              width: 2,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              message.replyTo!['senderId'] ==
+                                                      currentUser?.uid
+                                                  ? 'You'
+                                                  : (message.replyTo!['senderName'] ??
+                                                        'Unknown'),
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: isMe
+                                                    ? Colors.white
+                                                    : AppColors.radiantViolet,
+                                              ),
+                                            ),
+                                            Text(
+                                              message.replyTo!['text'] ?? '',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 9,
+                                                color: isMe
+                                                    ? Colors.white.withAlpha(
+                                                        204,
+                                                      )
+                                                    : Colors.white70,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                    if (message.type == 'image' &&
+                                        message.imageUrl != null)
+                                      _buildGroupedImageContent(
+                                        group: imageGroup,
+                                        allMessages: allMessages,
+                                        isSelectionMode: isSelectionMode,
+                                      )
+                                    else if (message.type == 'audio' &&
+                                        message.audioUrl != null)
+                                      AudioPlayerWidget(
+                                        audioUrl: message.audioUrl!,
+                                        isMe: isMe,
+                                        initialDurationMs:
+                                            message.audioDurationMs,
+                                      )
+                                    else
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 2.0,
+                                        ),
+                                        child: Text(
+                                          message.text ?? '',
+                                          style: GoogleFonts.outfit(
+                                            color: isMe
+                                                ? (Theme.of(
+                                                            context,
+                                                          ).brightness ==
+                                                          Brightness.dark
+                                                      ? Colors.white
+                                                      : Theme.of(
+                                                          context,
+                                                        ).colorScheme.onSurface)
+                                                : Theme.of(
+                                                    context,
+                                                  ).colorScheme.onSurface,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                      ),
+                                    const SizedBox(height: 2),
+                                    _buildMetadata(
+                                      message,
+                                      isMe,
+                                      onImage: message.type == 'image',
+                                    ),
+                                  ],
+                                ),
+                        ),
+                        if (message.reactions.isNotEmpty)
+                          PositionedDirectional(
+                            bottom: -11,
+                            start: isMe ? null : 10,
+                            end: isMe ? 10 : null,
+                            child: Transform.translate(
+                              offset: Offset(isMe ? 1.5 : -1.5, 0),
+                              child: _buildReactionBadge(
+                                message,
+                                currentUser?.uid,
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                )
-                .animate()
-                .fadeIn(duration: 300.ms)
-                .slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
+                ],
+              ),
+              if (message.reactions.isNotEmpty) const SizedBox(height: 10),
+            ],
+          ),
+        ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
       ),
     );
   }
@@ -1137,6 +1304,85 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  List<MapEntry<String, List<String>>> _orderedReactions(
+    Map<String, List<String>> reactions,
+  ) {
+    final entries = reactions.entries.toList();
+    entries.sort((a, b) {
+      final aIndex = _reactionEmojis.indexOf(a.key);
+      final bIndex = _reactionEmojis.indexOf(b.key);
+      if (aIndex == -1 && bIndex == -1) {
+        return a.key.compareTo(b.key);
+      }
+      if (aIndex == -1) return 1;
+      if (bIndex == -1) return -1;
+      return aIndex.compareTo(bIndex);
+    });
+    return entries;
+  }
+
+  Widget _buildReactionBadge(MessageModel message, String? currentUid) {
+    final reactions = _orderedReactions(message.reactions);
+    final total = reactions.fold<int>(
+      0,
+      (sum, entry) => sum + entry.value.length,
+    );
+    final didReact = currentUid != null
+        ? _didUserReact(message, currentUid)
+        : false;
+    final visibleEmojis = reactions.take(2).map((entry) => entry.key).toList();
+
+    return GestureDetector(
+      onTapDown: (details) =>
+          _showReactionPicker(message, anchor: details.globalPosition),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 22),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: didReact ? const Color(0xB3262F35) : const Color(0xAF1F272C),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: didReact ? Colors.white38 : Colors.white24),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 6,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            ...visibleEmojis.asMap().entries.expand((entry) {
+              final widgets = <Widget>[
+                Text(
+                  entry.value,
+                  style: const TextStyle(fontSize: 13, height: 1.0),
+                ),
+              ];
+              if (entry.key != visibleEmojis.length - 1) {
+                widgets.add(const SizedBox(width: 2));
+              }
+              return widgets;
+            }),
+            if (visibleEmojis.isNotEmpty) const SizedBox(width: 3),
+            Text(
+              '$total',
+              style: GoogleFonts.outfit(
+                fontSize: 10.5,
+                height: 1.0,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withAlpha(214),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
