@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/routes.dart';
 import '../../models/chat_model.dart';
+import '../../models/message_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
@@ -74,6 +75,7 @@ class HomeScreen extends ConsumerWidget {
                           padding: const EdgeInsets.only(bottom: 12.0),
                           child: _buildChatTile(
                             context,
+                            ref,
                             chats[index],
                             currentUser?.uid,
                           ),
@@ -246,6 +248,7 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _buildChatTile(
     BuildContext context,
+    WidgetRef ref,
     ChatModel chat,
     String? currentUserId,
   ) {
@@ -259,6 +262,14 @@ class HomeScreen extends ConsumerWidget {
     String? otherUserPhoto = chat.participantPhotos[otherUserId];
 
     bool isUnread = (chat.unreadCount[currentUserId] ?? 0) > 0;
+    final messagesAsync = ref.watch(chatMessagesProvider(chat.id));
+    final latestImageBatchCount = messagesAsync.maybeWhen(
+      data: (messages) => _latestImageBatchCount(messages),
+      orElse: () => 0,
+    );
+    final subtitleText = latestImageBatchCount > 1
+        ? '$latestImageBatchCount images'
+        : chat.lastMessage;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
@@ -335,17 +346,63 @@ class HomeScreen extends ConsumerWidget {
             ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4.0),
-              child: Text(
-                chat.lastMessage,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.outfit(
-                  fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal,
-                  color: isUnread
-                      ? Theme.of(context).colorScheme.onSurface
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 14,
-                ),
+              child: Row(
+                children: [
+                  if (latestImageBatchCount > 1)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withAlpha(26),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withAlpha(77),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.photo_library_rounded,
+                            size: 12,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$latestImageBatchCount',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Expanded(
+                    child: Text(
+                      subtitleText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.outfit(
+                        fontWeight: isUnread
+                            ? FontWeight.w500
+                            : FontWeight.normal,
+                        color: isUnread
+                            ? Theme.of(context).colorScheme.onSurface
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             trailing: Column(
@@ -390,6 +447,35 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  int _latestImageBatchCount(List<MessageModel> messages) {
+    if (messages.isEmpty) return 0;
+
+    final newest = messages.first;
+    final isImage =
+        newest.type == 'image' && newest.imageUrl != null && !newest.isDeleted;
+    if (!isImage) return 0;
+
+    var count = 0;
+    for (final message in messages) {
+      final sameSender = message.senderId == newest.senderId;
+      final imageMessage =
+          message.type == 'image' &&
+          message.imageUrl != null &&
+          !message.isDeleted;
+      final closeInTime =
+          newest.timestamp.difference(message.timestamp).abs() <=
+          const Duration(minutes: 2);
+
+      if (sameSender && imageMessage && closeInTime) {
+        count++;
+      } else {
+        break;
+      }
+    }
+
+    return count;
   }
 
   String _formatTime(DateTime time) {

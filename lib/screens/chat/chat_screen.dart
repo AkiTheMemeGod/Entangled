@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui';
 import 'package:entangled/models/user_model.dart';
 import 'package:image_picker/image_picker.dart';
@@ -42,6 +43,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Timer? _typingTimer;
   final Set<String> _selectedMessageIds = {};
   MessageModel? _replyingTo;
+  String? _replyingPreviewText;
+  bool _isUploadingImages = false;
 
   @override
   void initState() {
@@ -108,14 +111,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final replyData = _replyingTo != null
         ? {
             'id': _replyingTo!.id,
-            'text': _replyingTo!.text ?? '📷 Image',
+            'text': _replyingPreviewText ?? _replyingTo!.text ?? '📷 Image',
             'senderId': _replyingTo!.senderId,
             'senderName': _replyingTo!.senderName,
           }
         : null;
 
     _messageController.clear();
-    setState(() => _replyingTo = null); // Clear reply state
+    setState(() {
+      _replyingTo = null;
+      _replyingPreviewText = null;
+    }); // Clear reply state
     _setTypingStatus(false);
 
     final message = MessageModel(
@@ -234,46 +240,246 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  void _sendImage() async {
+  Future<void> _sendImages() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
+    final pickedFiles = await picker.pickMultiImage(
       imageQuality: 70,
+      maxWidth: 1600,
+      maxHeight: 1600,
     );
 
-    if (pickedFile == null) return;
+    if (pickedFiles.isEmpty) return;
 
     final currentUser = ref.read(currentUserProvider).value;
     if (currentUser == null) return;
 
-    // Show a temporary snackbar or indicator if needed, but we'll rely on the stream
     final storageService = ref.read(storageServiceProvider);
     final firestoreService = ref.read(firestoreServiceProvider);
+    var sentCount = 0;
 
-    final imageUrl = await storageService.uploadChatMessageImage(
-      widget.chatId,
-      File(pickedFile.path),
-    );
+    if (mounted) setState(() => _isUploadingImages = true);
 
-    if (imageUrl != null) {
-      final message = MessageModel(
-        id: const Uuid().v4(),
-        senderId: currentUser.uid,
-        senderName: currentUser.displayName,
-        imageUrl: imageUrl,
-        type: 'image',
-        status: 'sent',
-        readBy: [],
-        timestamp: DateTime.now(),
-      );
+    try {
+      for (final pickedFile in pickedFiles) {
+        final imageUrl = await storageService.uploadChatMessageImage(
+          widget.chatId,
+          File(pickedFile.path),
+        );
 
-      await firestoreService.sendMessage(
-        widget.chatId,
-        message,
-        currentUser.uid,
-        widget.otherUserId,
+        if (imageUrl == null) continue;
+
+        final message = MessageModel(
+          id: const Uuid().v4(),
+          senderId: currentUser.uid,
+          senderName: currentUser.displayName,
+          imageUrl: imageUrl,
+          type: 'image',
+          status: 'sent',
+          readBy: [],
+          timestamp: DateTime.now(),
+        );
+
+        await firestoreService.sendMessage(
+          widget.chatId,
+          message,
+          currentUser.uid,
+          widget.otherUserId,
+        );
+        sentCount++;
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingImages = false);
+    }
+
+    if (mounted && sentCount != pickedFiles.length) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Sent $sentCount of ${pickedFiles.length} images',
+            style: GoogleFonts.outfit(),
+          ),
+        ),
       );
     }
+  }
+
+  bool _isImageMessage(MessageModel message) {
+    return message.type == 'image' &&
+        message.imageUrl != null &&
+        !message.isDeleted;
+  }
+
+  String _replyPreviewTextForMessage(
+    MessageModel message,
+    int imageBatchCount,
+  ) {
+    if (_isImageMessage(message)) {
+      if (imageBatchCount > 1) {
+        return '$imageBatchCount images';
+      }
+      return '📷 Image';
+    }
+    return message.text ?? '';
+  }
+
+  bool _canGroupTogether(MessageModel newer, MessageModel older) {
+    if (!_isImageMessage(newer) || !_isImageMessage(older)) return false;
+    if (newer.senderId != older.senderId) return false;
+    final diff = newer.timestamp.difference(older.timestamp).abs();
+    return diff <= const Duration(minutes: 2);
+  }
+
+  bool _isGroupedImageContinuation(List<MessageModel> messages, int index) {
+    if (index <= 0 || index >= messages.length) return false;
+    final previous = messages[index - 1];
+    final current = messages[index];
+    return _canGroupTogether(previous, current);
+  }
+
+  List<MessageModel> _collectImageGroup(
+    List<MessageModel> messages,
+    int startIndex,
+  ) {
+    final group = <MessageModel>[];
+    if (startIndex < 0 || startIndex >= messages.length) return group;
+
+    final first = messages[startIndex];
+    if (!_isImageMessage(first)) return group;
+
+    group.add(first);
+    for (var i = startIndex + 1; i < messages.length; i++) {
+      final candidate = messages[i];
+      if (_canGroupTogether(group.last, candidate)) {
+        group.add(candidate);
+      } else {
+        break;
+      }
+    }
+    return group;
+  }
+
+  List<String> _allChatImageUrls(List<MessageModel> messages) {
+    final urls = <String>[];
+    for (final message in messages.reversed) {
+      if (_isImageMessage(message)) {
+        urls.add(message.imageUrl!);
+      }
+    }
+    return urls;
+  }
+
+  void _openImageViewer(List<MessageModel> allMessages, String initialUrl) {
+    final urls = _allChatImageUrls(allMessages);
+    if (urls.isEmpty) return;
+    final initialIndex = max(0, urls.indexOf(initialUrl));
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _ChatImageGalleryScreen(
+          imageUrls: urls,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupedImageContent({
+    required List<MessageModel> group,
+    required List<MessageModel> allMessages,
+    required bool isSelectionMode,
+  }) {
+    final urls = group.map((m) => m.imageUrl!).toList();
+    final visibleCount = min(4, urls.length);
+
+    if (visibleCount == 1) {
+      return GestureDetector(
+        onTap: isSelectionMode
+            ? null
+            : () => _openImageViewer(allMessages, urls.first),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: CachedNetworkImage(
+            imageUrl: urls.first,
+            width: 220,
+            height: 220,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => Container(
+              width: 220,
+              height: 220,
+              color: AppColors.obsidianBase,
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+            errorWidget: (context, url, error) => Container(
+              width: 220,
+              height: 220,
+              color: AppColors.obsidianBase,
+              child: const Icon(Icons.error),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final gridHeight = visibleCount <= 2 ? 110.0 : 220.0;
+
+    return SizedBox(
+      width: 220,
+      height: gridHeight,
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemCount: visibleCount,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 2,
+          crossAxisSpacing: 2,
+          childAspectRatio: 1,
+        ),
+        itemBuilder: (context, index) {
+          final url = urls[index];
+          final overflowCount = urls.length - visibleCount;
+
+          return GestureDetector(
+            onTap: isSelectionMode
+                ? null
+                : () => _openImageViewer(allMessages, url),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: url,
+                    fit: BoxFit.cover,
+                    placeholder: (context, _) => Container(
+                      color: AppColors.obsidianBase,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (context, failedUrl, error) => Container(
+                      color: AppColors.obsidianBase,
+                      child: const Icon(Icons.error),
+                    ),
+                  ),
+                  if (index == visibleCount - 1 && overflowCount > 0)
+                    Container(
+                      color: Colors.black54,
+                      alignment: Alignment.center,
+                      child: Text(
+                        '+$overflowCount',
+                        style: GoogleFonts.outfit(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -382,8 +588,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final msg = messages[index];
+                      if (_isGroupedImageContinuation(messages, index)) {
+                        return const SizedBox.shrink();
+                      }
                       final isMe = msg.senderId == currentUser?.uid;
-                      return _buildMessageBubble(msg, isMe, currentUser);
+                      return _buildMessageBubble(
+                        msg,
+                        isMe,
+                        currentUser,
+                        messages,
+                        index,
+                      );
                     },
                   );
                 },
@@ -403,14 +618,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     MessageModel message,
     bool isMe,
     UserModel? currentUser,
+    List<MessageModel> allMessages,
+    int messageIndex,
   ) {
     final isSelected = _selectedMessageIds.contains(message.id);
     final isSelectionMode = _selectedMessageIds.isNotEmpty;
+    final imageGroup = _collectImageGroup(allMessages, messageIndex);
 
     return SwipeToReplyWrapper(
       onReply: () {
         if (!message.isDeleted) {
-          setState(() => _replyingTo = message);
+          setState(() {
+            _replyingTo = message;
+            _replyingPreviewText = _replyPreviewTextForMessage(
+              message,
+              imageGroup.length,
+            );
+          });
         }
       },
       child: GestureDetector(
@@ -420,220 +644,239 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             _toggleMessageSelection(message.id);
           }
         },
-        child: AnimatedContainer(
-          duration: 200.ms,
-          padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.radiantViolet.withAlpha(38)
-                : Colors.transparent,
-          ),
-          child: Column(
-            crossAxisAlignment: isMe
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: isMe
-                    ? MainAxisAlignment.end
-                    : MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (!isMe) ...[
-                    HolographicAvatar(
-                      uid: widget.otherUserId,
-                      radius: 14,
-                      fallbackPhotoUrl: widget.otherUserPhoto,
-                      fallbackName: widget.otherUserName,
-                      showGlow: false,
-                      heroTag: null,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  Flexible(
-                    child: Container(
-                      padding: message.type == 'image'
-                          ? EdgeInsets.zero
-                          : const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
+        child:
+            AnimatedContainer(
+                  duration: 200.ms,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4.0,
+                    horizontal: 8.0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.radiantViolet.withAlpha(38)
+                        : Colors.transparent,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: isMe
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: isMe
+                            ? MainAxisAlignment.end
+                            : MainAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          if (!isMe) ...[
+                            HolographicAvatar(
+                              uid: widget.otherUserId,
+                              radius: 14,
+                              fallbackPhotoUrl: widget.otherUserPhoto,
+                              fallbackName: widget.otherUserName,
+                              showGlow: false,
+                              heroTag: null,
                             ),
-                      decoration: BoxDecoration(
-                        color: message.isDeleted
-                            ? (Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.white10
-                                  : Colors.black12)
-                            : (isMe
-                                  ? (Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? Theme.of(
-                                            context,
-                                          ).colorScheme.primary.withAlpha(46)
-                                        : Theme.of(
-                                            context,
-                                          ).colorScheme.primary.withAlpha(31))
-                                  : (Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? Colors.white.withAlpha(20)
-                                        : Colors.black.withAlpha(20))),
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(16),
-                          topRight: const Radius.circular(16),
-                          bottomLeft: Radius.circular(isMe ? 16 : 4),
-                          bottomRight: Radius.circular(isMe ? 4 : 16),
-                        ),
-                        boxShadow: isMe && !message.isDeleted
-                            ? [
-                                BoxShadow(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.primary.withAlpha(31),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
+                            const SizedBox(width: 8),
+                          ],
+                          Flexible(
+                            child: Container(
+                              padding: message.type == 'image'
+                                  ? EdgeInsets.zero
+                                  : const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                              decoration: BoxDecoration(
+                                color: message.isDeleted
+                                    ? (Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? Colors.white10
+                                          : Colors.black12)
+                                    : (isMe
+                                          ? (Theme.of(context).brightness ==
+                                                    Brightness.dark
+                                                ? Theme.of(context)
+                                                      .colorScheme
+                                                      .primary
+                                                      .withAlpha(46)
+                                                : Theme.of(context)
+                                                      .colorScheme
+                                                      .primary
+                                                      .withAlpha(31))
+                                          : (Theme.of(context).brightness ==
+                                                    Brightness.dark
+                                                ? Colors.white.withAlpha(20)
+                                                : Colors.black.withAlpha(20))),
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(16),
+                                  topRight: const Radius.circular(16),
+                                  bottomLeft: Radius.circular(isMe ? 16 : 4),
+                                  bottomRight: Radius.circular(isMe ? 4 : 16),
                                 ),
-                              ]
-                            : [],
-                        border:
-                            !isMe &&
-                                !message.isDeleted &&
-                                Theme.of(context).brightness == Brightness.light
-                            ? Border.all(color: Colors.black.withAlpha(13))
-                            : null,
-                      ),
-                      child: message.isDeleted
-                          ? Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 2,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.block_flipped,
-                                    size: 14,
-                                    color: Colors.white.withAlpha(128),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'This message was deleted',
-                                    style: GoogleFonts.outfit(
-                                      color: Colors.white.withAlpha(128),
-                                      fontSize: 14,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Quoted Reply Preview
-                                if (message.replyTo != null) ...[
-                                  Container(
-                                    margin: const EdgeInsets.only(bottom: 4),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withAlpha(38),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border(
-                                        left: BorderSide(
-                                          color: isMe
-                                              ? Colors.white70
-                                              : AppColors.radiantViolet,
-                                          width: 2,
+                                boxShadow: isMe && !message.isDeleted
+                                    ? [
+                                        BoxShadow(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary.withAlpha(31),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
                                         ),
+                                      ]
+                                    : [],
+                                border:
+                                    !isMe &&
+                                        !message.isDeleted &&
+                                        Theme.of(context).brightness ==
+                                            Brightness.light
+                                    ? Border.all(
+                                        color: Colors.black.withAlpha(13),
+                                      )
+                                    : null,
+                              ),
+                              child: message.isDeleted
+                                  ? Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
                                       ),
-                                    ),
-                                    child: Column(
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.block_flipped,
+                                            size: 14,
+                                            color: Colors.white.withAlpha(128),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'This message was deleted',
+                                            style: GoogleFonts.outfit(
+                                              color: Colors.white.withAlpha(
+                                                128,
+                                              ),
+                                              fontSize: 14,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : Column(
                                       crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                          CrossAxisAlignment.end,
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Text(
-                                          message.replyTo!['senderId'] ==
-                                                  currentUser?.uid
-                                              ? 'You'
-                                              : (message.replyTo!['senderName'] ??
-                                                    'Unknown'),
-                                          style: GoogleFonts.outfit(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                            color: isMe
-                                                ? Colors.white
-                                                : AppColors.radiantViolet,
+                                        // Quoted Reply Preview
+                                        if (message.replyTo != null) ...[
+                                          Container(
+                                            margin: const EdgeInsets.only(
+                                              bottom: 4,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 3,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withAlpha(38),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                              border: Border(
+                                                left: BorderSide(
+                                                  color: isMe
+                                                      ? Colors.white70
+                                                      : AppColors.radiantViolet,
+                                                  width: 2,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  message.replyTo!['senderId'] ==
+                                                          currentUser?.uid
+                                                      ? 'You'
+                                                      : (message.replyTo!['senderName'] ??
+                                                            'Unknown'),
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isMe
+                                                        ? Colors.white
+                                                        : AppColors
+                                                              .radiantViolet,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  message.replyTo!['text'] ??
+                                                      '',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 9,
+                                                    color: isMe
+                                                        ? Colors.white
+                                                              .withAlpha(204)
+                                                        : Colors.white70,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                        Text(
-                                          message.replyTo!['text'] ?? '',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: GoogleFonts.outfit(
-                                            fontSize: 9,
-                                            color: isMe
-                                                ? Colors.white.withAlpha(204)
-                                                : Colors.white70,
+                                        ],
+                                        if (message.type == 'image' &&
+                                            message.imageUrl != null)
+                                          _buildGroupedImageContent(
+                                            group: imageGroup,
+                                            allMessages: allMessages,
+                                            isSelectionMode: isSelectionMode,
+                                          )
+                                        else
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              right: 2.0,
+                                            ),
+                                            child: Text(
+                                              message.text ?? '',
+                                              style: GoogleFonts.outfit(
+                                                color: isMe
+                                                    ? (Theme.of(
+                                                                context,
+                                                              ).brightness ==
+                                                              Brightness.dark
+                                                          ? Colors.white
+                                                          : Theme.of(context)
+                                                                .colorScheme
+                                                                .onSurface)
+                                                    : Theme.of(
+                                                        context,
+                                                      ).colorScheme.onSurface,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w400,
+                                              ),
+                                            ),
                                           ),
+                                        const SizedBox(height: 2),
+                                        _buildMetadata(
+                                          message,
+                                          isMe,
+                                          onImage: message.type == 'image',
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ],
-                                if (message.type == 'image' &&
-                                    message.imageUrl != null)
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: CachedNetworkImage(
-                                      imageUrl: message.imageUrl!,
-                                      placeholder: (context, url) => Container(
-                                        height: 200,
-                                        width: 200,
-                                        color: AppColors.obsidianBase,
-                                        child: const Center(
-                                          child: CircularProgressIndicator(),
-                                        ),
-                                      ),
-                                      errorWidget: (context, url, error) =>
-                                          const Icon(Icons.error),
-                                      fit: BoxFit.cover,
-                                    ),
-                                  )
-                                else
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 2.0),
-                                    child: Text(
-                                      message.text ?? '',
-                                      style: GoogleFonts.outfit(
-                                        color: isMe
-                                            ? (Theme.of(context).brightness ==
-                                                      Brightness.dark
-                                                  ? Colors.white
-                                                  : Theme.of(
-                                                      context,
-                                                    ).colorScheme.onSurface)
-                                            : Theme.of(
-                                                context,
-                                              ).colorScheme.onSurface,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w400,
-                                      ),
-                                    ),
-                                  ),
-                                const SizedBox(height: 2),
-                                _buildMetadata(message, isMe),
-                              ],
                             ),
-                    ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ],
-          ),
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
+                )
+                .animate()
+                .fadeIn(duration: 300.ms)
+                .slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
       ),
     );
   }
@@ -731,7 +974,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 ),
                               ),
                               Text(
-                                _replyingTo!.text ?? '📷 Image',
+                                _replyingPreviewText ??
+                                    _replyingTo!.text ??
+                                    '📷 Image',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.outfit(
@@ -746,7 +991,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ),
                         IconButton(
                           icon: const Icon(Icons.close_rounded, size: 20),
-                          onPressed: () => setState(() => _replyingTo = null),
+                          onPressed: () => setState(() {
+                            _replyingTo = null;
+                            _replyingPreviewText = null;
+                          }),
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ],
@@ -775,12 +1023,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: IconButton(
-                        icon: Icon(
-                          Icons.add_rounded,
-                          size: 24,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        onPressed: _sendImage,
+                        icon: _isUploadingImages
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
+                                ),
+                              )
+                            : Icon(
+                                Icons.add_rounded,
+                                size: 24,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                        onPressed: _isUploadingImages ? null : _sendImages,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -960,6 +1219,81 @@ class _SwipeToReplyWrapperState extends State<SwipeToReplyWrapper>
             child: widget.child,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ChatImageGalleryScreen extends StatefulWidget {
+  final List<String> imageUrls;
+  final int initialIndex;
+
+  const _ChatImageGalleryScreen({
+    required this.imageUrls,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_ChatImageGalleryScreen> createState() =>
+      _ChatImageGalleryScreenState();
+}
+
+class _ChatImageGalleryScreenState extends State<_ChatImageGalleryScreen> {
+  late final PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex.clamp(0, widget.imageUrls.length - 1);
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          '${_currentIndex + 1} / ${widget.imageUrls.length}',
+          style: GoogleFonts.outfit(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        itemCount: widget.imageUrls.length,
+        onPageChanged: (index) => setState(() => _currentIndex = index),
+        itemBuilder: (context, index) {
+          return InteractiveViewer(
+            minScale: 1,
+            maxScale: 4,
+            child: Center(
+              child: CachedNetworkImage(
+                imageUrl: widget.imageUrls[index],
+                fit: BoxFit.contain,
+                placeholder: (context, url) => const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+                errorWidget: (context, url, error) => const Icon(
+                  Icons.broken_image_rounded,
+                  color: Colors.white70,
+                  size: 42,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
