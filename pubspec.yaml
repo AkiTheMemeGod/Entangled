@@ -53,6 +53,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  msix: ^3.16.13
+
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
@@ -101,3 +103,14 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+msix_config:
+  display_name: Entangled
+  publisher_display_name: Entangled
+  identity_name: com.entangled.app
+  msix_version: 1.0.0.0
+  logo_path: windows/runner/resources/app_icon.ico
+  capabilities: internetClient
+  # For Microsoft Store publishing, replace this with your registered
+  # publisher subject string, for example: CN=Your Company, O=Your Company, C=US
+  publisher: CN=Entangled

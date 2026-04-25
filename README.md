@@ -37,6 +37,15 @@ Backend notification delivery is done with a Supabase Edge Function + DB trigger
 - In Supabase SQL editor, run the push SQL file and database setting commands.
 - Confirm rows are created in `public.notifications` when new chat messages are inserted.
 
+## Windows Installer
+
+This project is configured to generate a Windows MSIX installer.
+
+1. Build the Windows release: `flutter build windows`
+2. Create the installer: `dart run msix:create`
+
+The MSIX package uses the Windows app icon in `windows/runner/resources/app_icon.ico` and is set up for local sideloading. If you later want Microsoft Store distribution, update the MSIX identity and publisher values in `pubspec.yaml` to match your Store registration.
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.
