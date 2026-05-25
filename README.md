@@ -1,14 +1,99 @@
 # 🪢 Entangled
 
-> **Seamlessly connected. Real-time conversations at your fingertips.**
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Downloads](https://img.shields.io/badge/Downloads-1000+-blue)](https://github.com/AkiTheMemeGod/Entangled/releases)
+[![Rating](https://img.shields.io/badge/Rating-4.8%2F5-yellow)](https://github.com/AkiTheMemeGod/Entangled)
+[![Website](https://img.shields.io/badge/Website-entangled.app-purple)](https://entangled.app)
 
-A cutting-edge Flutter messaging application that brings people together with real-time chat, voice capabilities, and intelligent notifications across all platforms.
+> **Privacy-first messaging for Android. Free, open-source, and ad-free.**
+
+A modern Flutter messaging application that puts your privacy first. Real-time chat, voice notes, and beautiful themes — with zero tracking, zero ads, and zero compromises.
+
+🌐 **[Visit Showcase Website →](https://entangled.app)**
+
+![App Screenshot](showcase_website/images/homescreen.png)
+
+## 📱 Download
+
+**[⬇️ Download Latest APK](https://github.com/AkiTheMemeGod/Entangled/releases/latest)** | 
+**[🌐 View Website](https://entangled.app)** |
+**[⭐ Star on GitHub](https://github.com/AkiTheMemeGod/Entangled)**
 
 ---
 
 ## ✨ Project Overview
 
 **Entangled** is a modern, feature-rich messaging platform built with Flutter. It demonstrates production-grade architecture, scalable backend infrastructure, and a delightful user experience. Whether you're chatting one-on-one or managing friend networks, Entangled keeps you connected in real-time.
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="showcase_website/images/homescreen.png" width="200" alt="Home Screen"/>
+        <br/><sub>Home Screen</sub>
+      </td>
+      <td align="center">
+        <img src="showcase_website/images/chatting with friend 1.png" width="200" alt="Chat Screen"/>
+        <br/><sub>Real-time Chat</sub>
+      </td>
+      <td align="center">
+        <img src="showcase_website/images/friend_request.png" width="200" alt="Friend Requests"/>
+        <br/><sub>Friend Requests</sub>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <img src="showcase_website/images/settings page and multi color theme switcher.png" width="200" alt="Themes"/>
+        <br/><sub>Theme Customization</sub>
+      </td>
+      <td align="center">
+        <img src="showcase_website/images/profile page.png" width="200" alt="Profile"/>
+        <br/><sub>Profile Page</sub>
+      </td>
+      <td align="center">
+        <img src="showcase_website/images/login_page.png" width="200" alt="Login"/>
+        <br/><sub>Secure Login</sub>
+      </td>
+    </tr>
+  </table>
+</div>
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Flutter SDK (3.x or higher)
+- Android Studio / Xcode
+- Supabase account (for backend)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/AkiTheMemeGod/Entangled.git
+cd Entangled
+
+# Install dependencies
+flutter pub get
+
+# Run the app
+flutter run
+```
+
+### Build Release APK
+```bash
+flutter build apk --release
+```
+
+---
+
+## 🎯 Why Entangled?
 
 ### 🎯 Core Vision
 

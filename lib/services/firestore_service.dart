@@ -256,16 +256,44 @@ class FirestoreService {
 
   // Messages
   Stream<List<MessageModel>> streamMessages(String chatId, String currentUid) {
-    return _supabase.from('messages').stream(primaryKey: ['id']).map((rows) {
-      final messages = rows
-          .map((row) => Map<String, dynamic>.from(row))
-          .where((map) => (map['chatid'] ?? map['chatId']) == chatId)
-          .map((map) => MessageModel.fromMap(map, map['id'] as String? ?? ''))
-          .where((msg) => !msg.deletedBy.contains(currentUid))
-          .toList();
-      messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      return messages.take(50).toList();
-    });
+    return _supabase
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .eq('chatid', chatId)
+        .order('timestamp', ascending: false)
+        .limit(50)
+        .map((rows) {
+          return rows
+              .map((row) => Map<String, dynamic>.from(row))
+              .map(
+                (map) => MessageModel.fromMap(map, map['id'] as String? ?? ''),
+              )
+              .where((msg) => !msg.deletedBy.contains(currentUid))
+              .toList();
+        });
+  }
+
+  /// Fetches up to [limit] messages older than [before] for cursor-based
+  /// pagination. Returns an empty list when there are no more messages.
+  Future<List<MessageModel>> fetchOlderMessages(
+    String chatId,
+    String currentUid,
+    DateTime before, {
+    int limit = 50,
+  }) async {
+    final rows = await _supabase
+        .from('messages')
+        .select()
+        .eq('chatid', chatId)
+        .lt('timestamp', before.toUtc().toIso8601String())
+        .order('timestamp', ascending: false)
+        .limit(limit);
+
+    return (rows as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .map((map) => MessageModel.fromMap(map, map['id'] as String? ?? ''))
+        .where((msg) => !msg.deletedBy.contains(currentUid))
+        .toList();
   }
 
   Future<void> deleteMessageForMe(

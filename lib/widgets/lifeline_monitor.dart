@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../theme/app_colors.dart';
@@ -52,56 +51,41 @@ class _LifelineMonitorState extends State<LifelineMonitor>
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
           AnimatedOpacity(
-                opacity: widget.isTyping ? 1.0 : 0.0,
-                duration: 300.ms,
-                child: ClipRRect(
+            opacity: widget.isTyping ? 1.0 : 0.0,
+            duration: 300.ms,
+            child: RepaintBoundary(
+              child: Container(
+                width: 50,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
                     bottomRight: Radius.circular(16),
                     bottomLeft: Radius.circular(4),
                   ),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      width: 50,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withAlpha(102),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(16),
-                          topRight: Radius.circular(16),
-                          bottomRight: Radius.circular(16),
-                          bottomLeft: Radius.circular(4),
-                        ),
-                        border: Border.all(color: Colors.white.withAlpha(26)),
-                      ),
-                      child: Center(
-                        child: AnimatedBuilder(
-                          animation: _pulseController,
-                          builder: (context, child) {
-                            return CustomPaint(
-                              size: const Size(30, 15),
-                              painter: ECGPainter(
-                                isTyping: widget.isTyping,
-                                progress: _pulseController.value,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary.withAlpha(60),
                   ),
                 ),
-              )
-              .animate(target: widget.isTyping ? 1 : 0)
-              .scale(
-                begin: const Offset(0.5, 0.5),
-                end: const Offset(1, 1),
-                curve: Curves.easeOutBack,
-                duration: 400.ms,
-              )
-              .slideY(begin: 0.5, end: 0, duration: 400.ms),
+                child: Center(
+                  child: AnimatedBuilder(
+                    animation: _pulseController,
+                    builder: (context, child) {
+                      return CustomPaint(
+                        size: const Size(30, 15),
+                        painter: ECGPainter(
+                          isTyping: widget.isTyping,
+                          progress: _pulseController.value,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -171,5 +155,6 @@ class ECGPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant ECGPainter oldDelegate) => true;
+  bool shouldRepaint(covariant ECGPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.isTyping != isTyping;
 }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Web OAuth 2.0 client ID from Google Cloud Console (Application type: Web application).
+         This is NOT the Android client ID. Get it from:
+         Google Cloud Console → APIs & Services → Credentials → Web client → Client ID -->
+    <string name="default_web_client_id">817995375141-s4oohtgfor7aul16jgai385rjpketpht.apps.googleusercontent.com</string>
+</resources>

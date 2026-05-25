@@ -18,9 +18,10 @@ class ThemeSettings {
   }
 }
 
-final themeSettingsProvider = NotifierProvider<ThemeSettingsNotifier, ThemeSettings>(() {
-  return ThemeSettingsNotifier();
-});
+final themeSettingsProvider =
+    NotifierProvider<ThemeSettingsNotifier, ThemeSettings>(() {
+      return ThemeSettingsNotifier();
+    });
 
 class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
   static const String _modeKey = 'theme_mode';
@@ -32,19 +33,21 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
     _initPrefs();
     return ThemeSettings(
       mode: ThemeMode.system,
-      variant: AppThemeVariant.obsidianBloom,
+      variant: AppThemeVariant.cinnabar,
     );
   }
 
   Future<void> _initPrefs() async {
     _prefs = await SharedPreferences.getInstance();
-    
+
     final modeIndex = _prefs.getInt(_modeKey);
     final variantIndex = _prefs.getInt(_variantKey);
 
     state = ThemeSettings(
       mode: modeIndex != null ? ThemeMode.values[modeIndex] : ThemeMode.system,
-      variant: variantIndex != null ? AppThemeVariant.values[variantIndex] : AppThemeVariant.obsidianBloom,
+      variant: variantIndex != null
+          ? AppThemeVariant.values[variantIndex]
+          : AppThemeVariant.cinnabar,
     );
   }
 
@@ -59,7 +62,9 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettings> {
   }
 
   void toggleTheme() {
-    final newMode = state.mode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    final newMode = state.mode == ThemeMode.light
+        ? ThemeMode.dark
+        : ThemeMode.light;
     setThemeMode(newMode);
   }
 }

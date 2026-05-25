@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'dart:ui';
 import 'package:entangled/models/user_model.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -67,6 +66,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     _messageController.addListener(_onTextChanged);
+    _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Wire paginated notifier once — must run after first build.
+      ref
+          .read(paginatedMessagesProvider(widget.chatId).notifier)
+          .init(widget.chatId);
+      // Mark messages as read when new ones arrive.
+      ref.listenManual(chatMessagesProvider(widget.chatId), (_, next) {
+        final messages = next.value;
+        if (messages != null &&
+            messages.isNotEmpty &&
+            messages.first.senderId == widget.otherUserId) {
+          _markAsRead();
+        }
+      }, fireImmediately: true);
+    });
+  }
+
+  void _onScroll() {
+    // ListView is reversed, so maxScrollExtent is the top (oldest messages).
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 300) {
+      ref
+          .read(paginatedMessagesProvider(widget.chatId).notifier)
+          .loadMore(widget.chatId);
+    }
   }
 
   @override
@@ -75,6 +101,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _typingTimer?.cancel();
     _audioRecorder.dispose();
     _messageController.removeListener(_onTextChanged);
+    _scrollController.removeListener(_onScroll);
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -849,16 +876,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider).value;
-    final messagesAsyncValue = ref.watch(chatMessagesProvider(widget.chatId));
+    final paginatedState = ref.watch(paginatedMessagesProvider(widget.chatId));
     final chatDocAsyncValue = ref.watch(chatProvider(widget.chatId));
-
-    // Mark as read whenever new messages load/arrive
-    messagesAsyncValue.whenData((messages) {
-      if (messages.isNotEmpty &&
-          messages.first.senderId == widget.otherUserId) {
-        _markAsRead();
-      }
-    });
 
     final isOtherUserTyping = chatDocAsyncValue.when(
       data: (chat) => chat?.typingUsers.contains(widget.otherUserId) ?? false,
@@ -869,105 +888,112 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isSelectionMode = _selectedMessageIds.isNotEmpty;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-            child: AppBar(
-              backgroundColor: isSelectionMode
-                  ? AppColors.radiantViolet.withAlpha(51)
-                  : Colors.transparent,
-              elevation: 0,
-              leading: IconButton(
-                icon: Icon(
-                  isSelectionMode
-                      ? Icons.close_rounded
-                      : Icons.arrow_back_ios_new_rounded,
-                  color: Theme.of(context).colorScheme.onSurface,
-                  size: isSelectionMode ? 24 : 20,
-                ),
-                onPressed: isSelectionMode
-                    ? _cancelSelection
-                    : () => Navigator.pop(context),
-              ),
-              title: isSelectionMode
-                  ? Text(
-                      '${_selectedMessageIds.length} selected',
-                      style: GoogleFonts.outfit(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    )
-                  : Row(
-                      children: [
-                        HolographicAvatar(
-                          uid: widget.otherUserId,
-                          radius: 18,
-                          fallbackPhotoUrl: widget.otherUserPhoto,
-                          fallbackName: widget.otherUserName,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          widget.otherUserName,
-                          style: GoogleFonts.outfit(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-              actions: [
-                if (isSelectionMode)
-                  IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      color: AppColors.electricRose,
-                    ),
-                    onPressed: _deleteSelectedMessages,
-                  ),
-              ],
-            ),
+      appBar: AppBar(
+        backgroundColor: isSelectionMode
+            ? Theme.of(context).colorScheme.primary.withAlpha(30)
+            : Theme.of(context).scaffoldBackgroundColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(
+            isSelectionMode
+                ? Icons.close_rounded
+                : Icons.arrow_back_ios_new_rounded,
+            color: Theme.of(context).colorScheme.onSurface,
+            size: isSelectionMode ? 24 : 20,
           ),
+          onPressed: isSelectionMode
+              ? _cancelSelection
+              : () => Navigator.pop(context),
         ),
+        title: isSelectionMode
+            ? Text(
+                '${_selectedMessageIds.length} selected',
+                style: GoogleFonts.outfit(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              )
+            : Row(
+                children: [
+                  HolographicAvatar(
+                    uid: widget.otherUserId,
+                    radius: 18,
+                    fallbackPhotoUrl: widget.otherUserPhoto,
+                    fallbackName: widget.otherUserName,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    widget.otherUserName,
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+        actions: [
+          if (isSelectionMode)
+            IconButton(
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                color: AppColors.electricRose,
+              ),
+              onPressed: _deleteSelectedMessages,
+            ),
+        ],
       ),
       body: AnimatedGradientBg(
         child: Column(
           children: [
             Expanded(
-              child: messagesAsyncValue.when(
-                data: (messages) {
+              child: Builder(
+                builder: (context) {
+                  final messages = paginatedState.messages;
+                  if (messages.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  // +1 slot for the load-more indicator at the top (reversed list = bottom widget).
+                  final itemCount =
+                      messages.length + (paginatedState.isLoadingMore ? 1 : 0);
                   return ListView.builder(
-                    reverse: true, // Show latest at bottom
+                    reverse: true,
                     controller: _scrollController,
                     padding: const EdgeInsets.only(
-                      top: 100,
+                      top: 16,
                       bottom: 20,
                       left: 16,
                       right: 16,
                     ),
-                    itemCount: messages.length,
+                    addAutomaticKeepAlives: false,
+                    addRepaintBoundaries: false,
+                    itemCount: itemCount,
                     itemBuilder: (context, index) {
+                      // Last slot in reversed list = oldest end = loading indicator.
+                      if (index == messages.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
                       final msg = messages[index];
                       if (_isGroupedImageContinuation(messages, index)) {
                         return const SizedBox.shrink();
                       }
                       final isMe = msg.senderId == currentUser?.uid;
-                      return _buildMessageBubble(
-                        msg,
-                        isMe,
-                        currentUser,
-                        messages,
-                        index,
+                      return RepaintBoundary(
+                        child: _buildMessageBubble(
+                          msg,
+                          isMe,
+                          currentUser,
+                          messages,
+                          index,
+                        ),
                       );
                     },
                   );
                 },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stack) => Center(child: Text('Error: $error')),
               ),
             ),
             LifelineMonitor(isTyping: isOtherUserTyping),
@@ -1262,7 +1288,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               if (message.reactions.isNotEmpty) const SizedBox(height: 10),
             ],
           ),
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
+        ),
       ),
     );
   }
@@ -1433,208 +1459,191 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (_replyingTo != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.glassHeavy,
-                      border: Border.all(color: AppColors.glassBorder),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 4,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: AppColors.radiantViolet,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _replyingTo!.senderId == currentUser?.uid
-                                    ? 'You'
-                                    : _replyingTo!.senderName,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.radiantViolet,
-                                ),
-                              ),
-                              Text(
-                                _replyingPreviewText ??
-                                    _replyingTo!.text ??
-                                    (_replyingTo!.type == 'audio'
-                                        ? _voiceReplyPreview()
-                                        : '📷 Image'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 13,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 20),
-                          onPressed: () => setState(() {
-                            _replyingTo = null;
-                            _replyingPreviewText = null;
-                          }),
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ).animate().fadeIn(duration: 200.ms).slideY(begin: 0.2, end: 0),
-            ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.glassBase,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: AppColors.glassBorder),
+                  color: Theme.of(context).colorScheme.surface,
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary.withAlpha(60),
+                  ),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   children: [
-                    const SizedBox(width: 4),
                     Container(
+                      width: 4,
+                      height: 32,
                       decoration: BoxDecoration(
-                        color: AppColors.glassBase,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: IconButton(
-                        icon: _isUploadingImages
-                            ? SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
-                                ),
-                              )
-                            : Icon(
-                                Icons.add_rounded,
-                                size: 24,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                        onPressed:
-                            (_isUploadingImages ||
-                                _isUploadingVoice ||
-                                _isRecordingVoice)
-                            ? null
-                            : _sendImages,
+                        color: AppColors.radiantViolet,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        readOnly: _isRecordingVoice,
-                        style: GoogleFonts.outfit(
-                          fontSize: 15,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Message...',
-                          hintStyle: GoogleFonts.outfit(
-                            fontSize: 14,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _replyingTo!.senderId == currentUser?.uid
+                                ? 'You'
+                                : _replyingTo!.senderName,
+                            style: GoogleFonts.outfit(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.radiantViolet,
+                            ),
                           ),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          filled: false,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 10,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    AnimatedContainer(
-                      duration: 200.ms,
-                      height: 40,
-                      width: 40,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            AppColors.radiantViolet,
-                            AppColors.electricRose,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.radiantViolet.withAlpha(77),
-                            blurRadius: 10,
-                            spreadRadius: 1,
+                          Text(
+                            _replyingPreviewText ??
+                                _replyingTo!.text ??
+                                (_replyingTo!.type == 'audio'
+                                    ? _voiceReplyPreview()
+                                    : '📷 Image'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
                           ),
                         ],
                       ),
-                      child: IconButton(
-                        icon: _isUploadingVoice
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Icon(
-                                hasText
-                                    ? Icons.arrow_upward_rounded
-                                    : (_isRecordingVoice
-                                          ? Icons.stop_rounded
-                                          : Icons.mic_rounded),
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                        onPressed: _isUploadingVoice
-                            ? null
-                            : () {
-                                if (_isRecordingVoice) {
-                                  _stopAndSendVoiceRecording();
-                                  return;
-                                }
-                                if (hasText) {
-                                  _sendMessage();
-                                  return;
-                                }
-                                _startVoiceRecording();
-                              },
-                      ),
                     ),
-                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: () => setState(() {
+                        _replyingTo = null;
+                        _replyingPreviewText = null;
+                      }),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ],
                 ),
+              ).animate().fadeIn(duration: 200.ms).slideY(begin: 0.2, end: 0),
+            ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary.withAlpha(40),
               ),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 4),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.glassBase,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: IconButton(
+                    icon: _isUploadingImages
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          )
+                        : Icon(
+                            Icons.add_rounded,
+                            size: 24,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                    onPressed:
+                        (_isUploadingImages ||
+                            _isUploadingVoice ||
+                            _isRecordingVoice)
+                        ? null
+                        : _sendImages,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    readOnly: _isRecordingVoice,
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Message...',
+                      hintStyle: GoogleFonts.outfit(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      filled: false,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                AnimatedContainer(
+                  duration: 200.ms,
+                  height: 40,
+                  width: 40,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.radiantViolet, AppColors.electricRose],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.radiantViolet.withAlpha(77),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: _isUploadingVoice
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Icon(
+                            hasText
+                                ? Icons.arrow_upward_rounded
+                                : (_isRecordingVoice
+                                      ? Icons.stop_rounded
+                                      : Icons.mic_rounded),
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                    onPressed: _isUploadingVoice
+                        ? null
+                        : () {
+                            if (_isRecordingVoice) {
+                              _stopAndSendVoiceRecording();
+                              return;
+                            }
+                            if (hasText) {
+                              _sendMessage();
+                              return;
+                            }
+                            _startVoiceRecording();
+                          },
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
             ),
           ),
         ],

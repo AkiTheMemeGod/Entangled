@@ -172,17 +172,46 @@ class AuthService {
 
   Future<UserModel?> signInWithGoogle() async {
     try {
-      await GoogleSignIn.instance.initialize();
+      // google_sign_in v7: pass the Web client ID so Google returns an idToken
+      // that Supabase can verify. Get this from Google Cloud Console →
+      // Credentials → Web application client → Client ID.
+      const webClientId = String.fromEnvironment(
+        'GOOGLE_WEB_CLIENT_ID',
+        defaultValue:
+            '817995375141-s4oohtgfor7aul16jgai385rjpketpht.apps.googleusercontent.com',
+      );
+      // clientId is required on Web; serverClientId is required on Android.
+      await GoogleSignIn.instance.initialize(
+        clientId: webClientId,
+        serverClientId: webClientId,
+      );
       final GoogleSignInAccount googleUser = await GoogleSignIn.instance
           .authenticate();
-      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
-      final authz = await googleUser.authorizationClient.authorizationForScopes(
-        ['email', 'profile'],
-      );
+
+      // Get idToken from authentication and accessToken from authorization.
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception(
+          'Google Sign-In did not return an ID token. '
+          'Ensure the Web client ID is set in Supabase Auth > Google and '
+          'the Android SHA-1 fingerprint is registered in Google Cloud.',
+        );
+      }
+
+      String? accessToken;
+      try {
+        final authz = await googleUser.authorizationClient
+            .authorizationForScopes(['email', 'profile']);
+        accessToken = authz?.accessToken;
+      } catch (_) {
+        // accessToken is optional; proceed without it.
+      }
+
       await _auth.signInWithIdToken(
         provider: OAuthProvider.google,
-        idToken: googleAuth.idToken ?? '',
-        accessToken: authz?.accessToken,
+        idToken: idToken,
+        accessToken: accessToken,
       );
 
       final user = _auth.currentUser;

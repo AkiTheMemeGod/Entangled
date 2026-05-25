@@ -1,25 +1,26 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
 class Glassmorphism {
   static BoxDecoration getBaseDecoration(BuildContext context) {
-    bool isDark = AppColors.isDarkMode(context);
+    final isDark = AppColors.isDarkMode(context);
+    final primary = Theme.of(context).colorScheme.primary;
     return BoxDecoration(
-      color: isDark ? AppColors.glassHeavy : AppColors.glassBase,
+      color: isDark ? AppColors.darkCard : AppColors.lightSurface,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: AppColors.glassBorder, width: 1.5),
+      border: Border.all(color: primary.withAlpha(isDark ? 35 : 28), width: 1),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withAlpha(13),
-          blurRadius: 15,
-          offset: const Offset(0, 5),
+          color: Colors.black.withAlpha(isDark ? 40 : 10),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
         ),
       ],
     );
   }
 }
 
+/// Plain solid card — no blur, works in both light and dark modes.
 class GlassCard extends StatelessWidget {
   final Widget child;
   final double? width;
@@ -40,35 +41,31 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    bool isDark = AppColors.isDarkMode(context);
+    final isDark = AppColors.isDarkMode(context);
+    final primary = Theme.of(context).colorScheme.primary;
+    final br = borderRadius ?? BorderRadius.circular(20);
 
     return Container(
       width: width,
       height: height,
       margin: margin,
-      child: ClipRRect(
-        borderRadius: borderRadius ?? BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            padding: padding ?? const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.glassHeavy : AppColors.glassBase,
-              borderRadius: borderRadius ?? BorderRadius.circular(20),
-              border: Border.all(color: AppColors.glassBorder, width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(13),
-                  blurRadius: 10,
-                  spreadRadius: 0,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: child,
-          ),
+      padding: padding ?? const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : AppColors.lightSurface,
+        borderRadius: br,
+        border: Border.all(
+          color: primary.withAlpha(isDark ? 35 : 28),
+          width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(isDark ? 40 : 10),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
+      child: child,
     );
   }
 }

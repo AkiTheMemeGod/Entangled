@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 enum AppThemeVariant {
+  cinnabar, // user's palette — default
   obsidianBloom,
   monochrome,
   auroraCool,
@@ -31,6 +32,17 @@ class ThemePalette {
 
   static ThemePalette getPalette(AppThemeVariant variant) {
     switch (variant) {
+      case AppThemeVariant.cinnabar:
+        return const ThemePalette(
+          primary: Color(0xFFE36A6A), // cinnabar red (light primary)
+          secondary: Color(0xFFFFB2B2), // soft coral  (light secondary)
+          primaryDark: Color(0xFFEB4C4C), // vivid red   (dark primary)
+          secondaryDark: Color(0xFFFF7070), // lighter red (dark secondary)
+          primaryLight: Color(0xFFE36A6A),
+          secondaryLight: Color(0xFFFFB2B2),
+          bgDark: Color(0xFF1A0F0F), // warm near-black
+          bgLight: Color(0xFFFFFBF1), // warm ivory
+        );
       case AppThemeVariant.monochrome:
         return const ThemePalette(
           primary: Colors.white,

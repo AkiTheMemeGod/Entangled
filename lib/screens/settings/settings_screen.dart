@@ -196,11 +196,12 @@ class SettingsScreen extends ConsumerWidget {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.isDarkMode(context)
-            ? AppColors.glassHeavy
-            : Colors.white.withAlpha(128),
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.glassBorder, width: 1),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withAlpha(30),
+          width: 1,
+        ),
       ),
       child: ListTile(
         onTap: onTap,
