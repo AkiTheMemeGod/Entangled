@@ -84,30 +84,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 // Logo + wordmark
                 Column(
                   children: [
-                    Container(
-                          width: 68,
-                          height: 68,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [scheme.primary, scheme.secondary],
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: scheme.primary.withAlpha(120),
-                                blurRadius: 28,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.chat_bubble_rounded,
-                            size: 32,
-                            color: Colors.white,
-                          ),
-                        )
+                    Image.asset('lib/logo with name.png', width: 180)
                         .animate()
                         .fadeIn(duration: 500.ms)
                         .scaleXY(
@@ -115,37 +92,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           end: 1.0,
                           duration: 500.ms,
                           curve: Curves.easeOutBack,
-                        ),
-                    const SizedBox(height: 20),
-                    ShaderMask(
-                          shaderCallback: (bounds) =>
-                              LinearGradient(
-                                colors: [scheme.primary, scheme.secondary],
-                              ).createShader(
-                                Rect.fromLTWH(
-                                  0,
-                                  0,
-                                  bounds.width,
-                                  bounds.height,
-                                ),
-                              ),
-                          child: Text(
-                            'Entangled',
-                            style: GoogleFonts.outfit(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              letterSpacing: -0.8,
-                            ),
-                          ),
-                        )
-                        .animate()
-                        .fadeIn(delay: 120.ms, duration: 500.ms)
-                        .slideY(
-                          begin: 0.1,
-                          end: 0,
-                          delay: 120.ms,
-                          duration: 400.ms,
                         ),
                     const SizedBox(height: 6),
                     Text(

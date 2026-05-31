@@ -79,30 +79,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // Logo + wordmark
-                Container(
-                      width: 68,
-                      height: 68,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [scheme.primary, scheme.secondary],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: scheme.primary.withAlpha(100),
-                            blurRadius: 24,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.person_add_alt_1_rounded,
-                        size: 30,
-                        color: Colors.white,
-                      ),
-                    )
+                Image.asset('lib/logo with name.png', width: 180)
                     .animate()
                     .fadeIn(duration: 500.ms)
                     .scaleXY(
@@ -110,32 +87,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       end: 1.0,
                       duration: 500.ms,
                       curve: Curves.easeOutBack,
-                    ),
-                const SizedBox(height: 20),
-                ShaderMask(
-                      shaderCallback: (bounds) =>
-                          LinearGradient(
-                            colors: [scheme.primary, scheme.secondary],
-                          ).createShader(
-                            Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-                          ),
-                      child: Text(
-                        'Create Account',
-                        style: GoogleFonts.outfit(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    )
-                    .animate()
-                    .fadeIn(delay: 120.ms, duration: 400.ms)
-                    .slideY(
-                      begin: 0.1,
-                      end: 0,
-                      delay: 120.ms,
-                      duration: 350.ms,
                     ),
                 const SizedBox(height: 6),
                 Text(

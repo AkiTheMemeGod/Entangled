@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../config/routes.dart';
@@ -85,54 +84,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo placeholder
-              Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Theme.of(context).colorScheme.primary,
-                          Theme.of(context).colorScheme.secondary,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary.withAlpha(102),
-                          blurRadius: 30,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 64,
-                      color: Colors.white,
-                    ),
-                  )
+              Image.asset('lib/logo with name.png', width: 220)
                   .animate()
                   .scale(duration: 500.ms, curve: Curves.easeOutBack)
                   .then()
                   .shimmer(duration: 1.seconds),
-
-              const SizedBox(height: 32),
-
-              Text(
-                    'Entangled',
-                    style: GoogleFonts.outfit(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -1,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  )
-                  .animate()
-                  .fade(delay: 300.ms, duration: 500.ms)
-                  .slideY(begin: 0.5),
             ],
           ),
         ),
