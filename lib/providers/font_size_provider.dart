@@ -14,13 +14,11 @@ class FontSizeSettings {
 }
 
 final fontSizeProvider =
-    NotifierProvider<FontSizeNotifier, FontSizeSettings>(() {
-      return FontSizeNotifier();
-    });
+    NotifierProvider<FontSizeNotifier, FontSizeSettings>(FontSizeNotifier.new);
 
 class FontSizeNotifier extends Notifier<FontSizeSettings> {
   static const String _multiplierKey = 'font_size_multiplier';
-  late SharedPreferences _prefs;
+  SharedPreferences? _prefs;
 
   @override
   FontSizeSettings build() {
@@ -30,15 +28,17 @@ class FontSizeNotifier extends Notifier<FontSizeSettings> {
 
   Future<void> _initPrefs() async {
     _prefs = await SharedPreferences.getInstance();
-    final multiplier = _prefs.getDouble(_multiplierKey);
+    final multiplier = _prefs?.getDouble(_multiplierKey);
     if (multiplier != null) {
       state = FontSizeSettings(multiplier: multiplier);
     }
   }
 
-  void setFontSizeMultiplier(double multiplier) {
+  Future<void> setFontSizeMultiplier(double multiplier) async {
     final clampedMultiplier = multiplier.clamp(0.8, 1.5);
     state = state.copyWith(multiplier: clampedMultiplier);
-    _prefs.setDouble(_multiplierKey, clampedMultiplier);
+    
+    _prefs ??= await SharedPreferences.getInstance();
+    await _prefs?.setDouble(_multiplierKey, clampedMultiplier);
   }
 }

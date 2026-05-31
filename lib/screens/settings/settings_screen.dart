@@ -255,8 +255,8 @@ class SettingsScreen extends ConsumerWidget {
                 max: 1.5,
                 divisions: 7,
                 label: '${(fontSizeSettings.multiplier * 100).toStringAsFixed(0)}%',
-                onChanged: (value) {
-                  ref.read(fontSizeProvider.notifier).setFontSizeMultiplier(value);
+                onChanged: (value) async {
+                  await ref.read(fontSizeProvider.notifier).setFontSizeMultiplier(value);
                 },
               ),
               const SizedBox(height: 12),

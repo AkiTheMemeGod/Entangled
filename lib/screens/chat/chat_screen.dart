@@ -1204,58 +1204,89 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     if (message.replyTo != null) ...[
                                       Container(
                                         margin: const EdgeInsets.only(
-                                          bottom: 4,
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 3,
+                                          bottom: 12,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Colors.black.withAlpha(38),
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          border: Border(
-                                            left: BorderSide(
-                                              color: isMe
-                                                  ? Colors.white70
-                                                  : AppColors.radiantViolet,
-                                              width: 2,
-                                            ),
+                                          color: isMe
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                                  .withAlpha(25)
+                                              : AppColors.radiantViolet.withAlpha(20),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: isMe
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                    .withAlpha(80)
+                                                : AppColors.radiantViolet.withAlpha(60),
+                                            width: 1.5,
                                           ),
                                         ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              message.replyTo!['senderId'] ==
-                                                      currentUser?.uid
-                                                  ? 'You'
-                                                  : (message.replyTo!['senderName'] ??
-                                                        'Unknown'),
-                                              style: GoogleFonts.outfit(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                                color: isMe
-                                                    ? Colors.white
-                                                    : AppColors.radiantViolet,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.reply_outlined,
+                                                    size: 14,
+                                                    color: isMe
+                                                        ? Theme.of(context)
+                                                            .colorScheme
+                                                            .primary
+                                                        : AppColors.radiantViolet,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Expanded(
+                                                    child: Text(
+                                                      message.replyTo!['senderId'] ==
+                                                              currentUser?.uid
+                                                          ? 'You'
+                                                          : (message.replyTo![
+                                                                  'senderName'] ??
+                                                              'Unknown'),
+                                                      style: GoogleFonts.outfit(
+                                                        fontSize: 10 *
+                                                            fontSizeMultiplier,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: isMe
+                                                            ? Theme.of(context)
+                                                                .colorScheme
+                                                                .primary
+                                                            : AppColors
+                                                                .radiantViolet,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                            ),
-                                            Text(
-                                              message.replyTo!['text'] ?? '',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: GoogleFonts.outfit(
-                                                fontSize: 9,
-                                                color: isMe
-                                                    ? Colors.white.withAlpha(
-                                                        204,
-                                                      )
-                                                    : Colors.white70,
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                message.replyTo!['text'] ?? '',
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: GoogleFonts.outfit(
+                                                  fontSize: 11 *
+                                                      fontSizeMultiplier,
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurface
+                                                      .withAlpha(204),
+                                                  height: 1.3,
+                                                ),
                                               ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ],
