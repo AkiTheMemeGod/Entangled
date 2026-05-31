@@ -14,6 +14,7 @@ import 'package:record/record.dart';
 import '../../models/message_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/font_size_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/audio_player_widget.dart';
 import '../../widgets/animated_gradient_bg.dart';
@@ -697,6 +698,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         !message.isDeleted;
   }
 
+  bool _isSingleEmoji(String? text) {
+    if (text == null || text.isEmpty) return false;
+    final trimmed = text.trim();
+    
+    // If text is very long (more than 10 characters), unlikely to be single emoji
+    if (trimmed.length > 10) return false;
+    
+    for (var i = 0; i < trimmed.length; i++) {
+      final code = trimmed.codeUnitAt(i);
+      // Check if character is in emoji/symbol ranges or is a variation selector
+      if ((code >= 0x1F300 && code <= 0x1F9FF) || // Main emoji ranges
+          (code >= 0x2600 && code <= 0x27BF) ||   // Miscellaneous Symbols
+          (code >= 0x2300 && code <= 0x23FF) ||   // Miscellaneous Technical
+          code == 0xFE0F ||                        // Variation Selector
+          code == 0x200D ||                        // Zero Width Joiner
+          (code >= 0xD800 && code <= 0xDFFF)) {   // Surrogate pairs (emoji)
+        continue;
+      } else if (code > 127) {
+        // High Unicode char (likely emoji)
+        continue;
+      } else if (code != 32) {
+        // Regular ASCII character that's not space
+        return false;
+      }
+    }
+    return true;
+  }
+
   String _replyPreviewTextForMessage(
     MessageModel message,
     int imageBatchCount,
@@ -878,6 +907,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final currentUser = ref.watch(currentUserProvider).value;
     final paginatedState = ref.watch(paginatedMessagesProvider(widget.chatId));
     final chatDocAsyncValue = ref.watch(chatProvider(widget.chatId));
+    final fontSizeSettings = ref.watch(fontSizeProvider);
 
     final isOtherUserTyping = chatDocAsyncValue.when(
       data: (chat) => chat?.typingUsers.contains(widget.otherUserId) ?? false,
@@ -989,6 +1019,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           currentUser,
                           messages,
                           index,
+                          fontSizeSettings.multiplier,
                         ),
                       );
                     },
@@ -1010,10 +1041,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     UserModel? currentUser,
     List<MessageModel> allMessages,
     int messageIndex,
+    double fontSizeMultiplier,
   ) {
     final isSelected = _selectedMessageIds.contains(message.id);
     final isSelectionMode = _selectedMessageIds.isNotEmpty;
     final imageGroup = _collectImageGroup(allMessages, messageIndex);
+    final isSingleEmoji = message.type != 'image' &&
+        message.type != 'audio' &&
+        !message.isDeleted &&
+        _isSingleEmoji(message.text);
 
     return SwipeToReplyWrapper(
       onReply: () {
@@ -1077,58 +1113,63 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       clipBehavior: Clip.none,
                       children: [
                         Container(
-                          padding: message.type == 'image'
+                          padding: isSingleEmoji
                               ? EdgeInsets.zero
-                              : const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                          decoration: BoxDecoration(
-                            color: message.isDeleted
-                                ? (Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? Colors.white10
-                                      : Colors.black12)
-                                : (isMe
+                              : (message.type == 'image'
+                                  ? EdgeInsets.zero
+                                  : const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    )),
+                          decoration: isSingleEmoji
+                              ? null
+                              : BoxDecoration(
+                                  color: message.isDeleted
                                       ? (Theme.of(context).brightness ==
                                                 Brightness.dark
-                                            ? Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
-                                                  .withAlpha(46)
-                                            : Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
-                                                  .withAlpha(31))
-                                      : (Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? Colors.white.withAlpha(20)
-                                            : Colors.black.withAlpha(20))),
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(isMe ? 16 : 4),
-                              bottomRight: Radius.circular(isMe ? 4 : 16),
-                            ),
-                            boxShadow: isMe && !message.isDeleted
-                                ? [
-                                    BoxShadow(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary.withAlpha(31),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ]
-                                : [],
-                            border:
-                                !isMe &&
-                                    !message.isDeleted &&
-                                    Theme.of(context).brightness ==
-                                        Brightness.light
-                                ? Border.all(color: Colors.black.withAlpha(13))
-                                : null,
-                          ),
+                                            ? Colors.white10
+                                            : Colors.black12)
+                                      : (isMe
+                                            ? (Theme.of(context).brightness ==
+                                                      Brightness.dark
+                                                  ? Theme.of(context)
+                                                        .colorScheme
+                                                        .primary
+                                                        .withAlpha(46)
+                                                  : Theme.of(context)
+                                                        .colorScheme
+                                                        .primary
+                                                        .withAlpha(31))
+                                            : (Theme.of(context).brightness ==
+                                                      Brightness.dark
+                                                  ? Colors.white.withAlpha(20)
+                                                  : Colors.black.withAlpha(20))),
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(16),
+                                    topRight: const Radius.circular(16),
+                                    bottomLeft: Radius.circular(isMe ? 16 : 4),
+                                    bottomRight: Radius.circular(isMe ? 4 : 16),
+                                  ),
+                                  boxShadow: isMe && !message.isDeleted
+                                      ? [
+                                          BoxShadow(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary.withAlpha(31),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ]
+                                      : [],
+                                  border:
+                                      !isMe &&
+                                          !message.isDeleted &&
+                                          Theme.of(context).brightness ==
+                                              Brightness.light
+                                          ? Border.all(
+                                              color: Colors.black.withAlpha(13))
+                                          : null,
+                                ),
                           child: message.isDeleted
                               ? Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -1235,9 +1276,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       )
                                     else
                                       Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 2.0,
-                                        ),
+                                        padding: isSingleEmoji
+                                            ? EdgeInsets.zero
+                                            : const EdgeInsets.only(
+                                                right: 2.0,
+                                              ),
                                         child: Text(
                                           message.text ?? '',
                                           style: GoogleFonts.outfit(
@@ -1253,17 +1296,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                 : Theme.of(
                                                     context,
                                                   ).colorScheme.onSurface,
-                                            fontSize: 14,
+                                            fontSize: isSingleEmoji
+                                                ? 48
+                                                : 14 * fontSizeMultiplier,
                                             fontWeight: FontWeight.w400,
                                           ),
                                         ),
                                       ),
-                                    const SizedBox(height: 2),
-                                    _buildMetadata(
-                                      message,
-                                      isMe,
-                                      onImage: message.type == 'image',
-                                    ),
+                                    if (!isSingleEmoji) const SizedBox(height: 2),
+                                    if (!isSingleEmoji)
+                                      _buildMetadata(
+                                        message,
+                                        isMe,
+                                        onImage: message.type == 'image',
+                                      ),
                                   ],
                                 ),
                         ),

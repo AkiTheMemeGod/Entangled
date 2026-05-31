@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../providers/theme_provider.dart';
+import '../../providers/font_size_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/theme_variants.dart';
 import '../../widgets/animated_gradient_bg.dart';
@@ -13,6 +14,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(themeSettingsProvider);
+    final fontSizeSettings = ref.watch(fontSizeProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -25,13 +27,14 @@ class SettingsScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           children: [
-            _buildSectionHeader(context, 'Appearance'),
+            _buildSectionHeader(context, 'Appearance', fontSizeSettings.multiplier),
             const SizedBox(height: 12),
             _buildSettingTile(
               context,
               icon: Icons.dark_mode_rounded,
               title: 'Obsidian Theme',
               subtitle: 'Toggle dark/light resonance',
+              fontSizeMultiplier: fontSizeSettings.multiplier,
               trailing: Switch(
                 value: settings.mode == ThemeMode.dark,
                 activeThumbColor: Theme.of(context).colorScheme.primary,
@@ -43,13 +46,16 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 24),
             _buildThemeGallery(context, ref, settings),
             const SizedBox(height: 32),
-            _buildSectionHeader(context, 'Notifications'),
+            _buildFontSizeSection(context, ref, fontSizeSettings),
+            const SizedBox(height: 32),
+            _buildSectionHeader(context, 'Notifications', fontSizeSettings.multiplier),
             const SizedBox(height: 12),
             _buildSettingTile(
               context,
               icon: Icons.notifications_active_rounded,
               title: 'Push Notifications',
               subtitle: 'Real-time sync alerts',
+              fontSizeMultiplier: fontSizeSettings.multiplier,
               onTap: () {},
             ),
             const SizedBox(height: 12),
@@ -58,16 +64,18 @@ class SettingsScreen extends ConsumerWidget {
               icon: Icons.vibration_rounded,
               title: 'Vaptic Feedback',
               subtitle: 'Quantum tactile response',
+              fontSizeMultiplier: fontSizeSettings.multiplier,
               onTap: () {},
             ),
             const SizedBox(height: 32),
-            _buildSectionHeader(context, 'Privacy & Security'),
+            _buildSectionHeader(context, 'Privacy & Security', fontSizeSettings.multiplier),
             const SizedBox(height: 12),
             _buildSettingTile(
               context,
               icon: Icons.security_rounded,
               title: 'Encryption Protocol',
               subtitle: 'Manage E2EE keys',
+              fontSizeMultiplier: fontSizeSettings.multiplier,
               onTap: () {},
             ),
             const SizedBox(height: 12),
@@ -76,6 +84,7 @@ class SettingsScreen extends ConsumerWidget {
               icon: Icons.phonelink_lock_rounded,
               title: 'Self-Destruct Timer',
               subtitle: 'Auto-erase message history',
+              fontSizeMultiplier: fontSizeSettings.multiplier,
               onTap: () {},
             ),
           ],
@@ -84,14 +93,14 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title) {
+  Widget _buildSectionHeader(BuildContext context, String title, double fontSizeMultiplier) {
     return Padding(
       padding: const EdgeInsets.only(left: 8.0),
       child: Text(
         title.toUpperCase(),
         style: GoogleFonts.outfit(
           color: Theme.of(context).colorScheme.primary,
-          fontSize: 12,
+          fontSize: 12 * fontSizeMultiplier,
           fontWeight: FontWeight.w700,
           letterSpacing: 2,
         ),
@@ -186,11 +195,91 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildFontSizeSection(
+    BuildContext context,
+    WidgetRef ref,
+    FontSizeSettings fontSizeSettings,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 8.0, bottom: 12),
+          child: Text(
+            'TEXT SIZE',
+            style: GoogleFonts.outfit(
+              color: Theme.of(context).colorScheme.primary,
+              fontSize: 12 * fontSizeSettings.multiplier,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 2,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.primary.withAlpha(30),
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Font Size',
+                    style: GoogleFonts.outfit(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16 * fontSizeSettings.multiplier,
+                    ),
+                  ),
+                  Text(
+                    '${(fontSizeSettings.multiplier * 100).toStringAsFixed(0)}%',
+                    style: GoogleFonts.outfit(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16 * fontSizeSettings.multiplier,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Slider(
+                value: fontSizeSettings.multiplier,
+                min: 0.8,
+                max: 1.5,
+                divisions: 7,
+                label: '${(fontSizeSettings.multiplier * 100).toStringAsFixed(0)}%',
+                onChanged: (value) {
+                  ref.read(fontSizeProvider.notifier).setFontSizeMultiplier(value);
+                },
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Preview: The quick brown fox jumps over the lazy dog',
+                style: GoogleFonts.outfit(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 14 * fontSizeSettings.multiplier,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSettingTile(
     BuildContext context, {
     required IconData icon,
     required String title,
     required String subtitle,
+    required double fontSizeMultiplier,
     Widget? trailing,
     VoidCallback? onTap,
   }) {
@@ -223,14 +312,14 @@ class SettingsScreen extends ConsumerWidget {
           style: GoogleFonts.outfit(
             color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
-            fontSize: 16,
+            fontSize: 16 * fontSizeMultiplier,
           ),
         ),
         subtitle: Text(
           subtitle,
           style: GoogleFonts.outfit(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontSize: 12,
+            fontSize: 12 * fontSizeMultiplier,
           ),
         ),
         trailing:
