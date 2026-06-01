@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:gal/gal.dart';
 import '../../models/message_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
@@ -1857,6 +1858,7 @@ class _ChatImageGalleryScreen extends StatefulWidget {
 class _ChatImageGalleryScreenState extends State<_ChatImageGalleryScreen> {
   late final PageController _pageController;
   late int _currentIndex;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -1869,6 +1871,38 @@ class _ChatImageGalleryScreenState extends State<_ChatImageGalleryScreen> {
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveImageToGallery() async {
+    setState(() => _isSaving = true);
+    try {
+      await Gal.putImage(widget.imageUrls[_currentIndex], album: 'Entangled');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Image saved to gallery',
+            style: GoogleFonts.outfit(color: Colors.white),
+          ),
+          backgroundColor: AppColors.radiantViolet,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to save image',
+            style: GoogleFonts.outfit(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } finally {
+      setState(() => _isSaving = false);
+    }
   }
 
   @override
@@ -1885,6 +1919,21 @@ class _ChatImageGalleryScreenState extends State<_ChatImageGalleryScreen> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: _isSaving
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation(Colors.white),
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(Icons.download_rounded, color: Colors.white, size: 24),
+            onPressed: _isSaving ? null : _saveImageToGallery,
+          ),
+        ],
       ),
       body: PageView.builder(
         controller: _pageController,

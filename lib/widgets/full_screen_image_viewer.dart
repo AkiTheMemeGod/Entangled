@@ -2,9 +2,10 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:gal/gal.dart';
 import '../theme/app_colors.dart';
 
-class FullScreenImageViewer extends StatelessWidget {
+class FullScreenImageViewer extends StatefulWidget {
   final String imageUrl;
   final String? tag;
   final String? name;
@@ -15,6 +16,45 @@ class FullScreenImageViewer extends StatelessWidget {
     this.tag,
     this.name,
   });
+
+  @override
+  State<FullScreenImageViewer> createState() => _FullScreenImageViewerState();
+}
+
+class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
+  bool _isSaving = false;
+
+  Future<void> _saveImageToGallery() async {
+    setState(() => _isSaving = true);
+    try {
+      await Gal.putImage(widget.imageUrl, album: 'Entangled');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Image saved to gallery',
+            style: GoogleFonts.outfit(color: Colors.white),
+          ),
+          backgroundColor: AppColors.radiantViolet,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to save image',
+            style: GoogleFonts.outfit(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } finally {
+      setState(() => _isSaving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,9 +68,9 @@ class FullScreenImageViewer extends StatelessWidget {
           icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
           onPressed: () => Navigator.pop(context),
         ),
-        title: name != null
+        title: widget.name != null
             ? Text(
-                name!,
+                widget.name!,
                 style: GoogleFonts.outfit(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -38,13 +78,28 @@ class FullScreenImageViewer extends StatelessWidget {
                 ),
               )
             : null,
+        actions: [
+          IconButton(
+            icon: _isSaving
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation(Colors.white),
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(Icons.download_rounded, color: Colors.white, size: 24),
+            onPressed: _isSaving ? null : _saveImageToGallery,
+          ),
+        ],
       ),
       body: Stack(
         children: [
           // Background Blur
           Positioned.fill(
             child: CachedNetworkImage(
-              imageUrl: imageUrl,
+              imageUrl: widget.imageUrl,
               fit: BoxFit.cover,
               errorWidget: (context, url, error) => const SizedBox.shrink(),
             ),
@@ -58,14 +113,14 @@ class FullScreenImageViewer extends StatelessWidget {
 
           // Main Interactive Image
           Center(
-            child: tag != null
+            child: widget.tag != null
                 ? Hero(
-                    tag: tag!,
+                    tag: widget.tag!,
                     child: InteractiveViewer(
                       minScale: 0.5,
                       maxScale: 4.0,
                       child: CachedNetworkImage(
-                        imageUrl: imageUrl,
+                        imageUrl: widget.imageUrl,
                         fit: BoxFit.contain,
                         width: double.infinity,
                         placeholder: (context, url) => const Center(
@@ -95,7 +150,7 @@ class FullScreenImageViewer extends StatelessWidget {
                     minScale: 0.5,
                     maxScale: 4.0,
                     child: CachedNetworkImage(
-                      imageUrl: imageUrl,
+                      imageUrl: widget.imageUrl,
                       fit: BoxFit.contain,
                       width: double.infinity,
                       placeholder: (context, url) => const Center(
